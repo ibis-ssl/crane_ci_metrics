@@ -127,43 +127,43 @@ for run in workflow_runs:
 # Docker image analysis
 ####################
 
-package_api = github_api.GithubPackagesAPI(github_token)
-packages = package_api.get_all_containers(DOCKER_ORGS, DOCKER_IMAGE)
+# package_api = github_api.GithubPackagesAPI(github_token)
+# packages = package_api.get_all_containers(DOCKER_ORGS, DOCKER_IMAGE)
 
 
-def auth(dxf, response):
-    dxf.authenticate(github_actor, github_token, response=response)
+# def auth(dxf, response):
+#     dxf.authenticate(github_actor, github_token, response=response)
 
 
-docker_images = []
+# docker_images = []
 
-dxf = DXF("ghcr.io", f"{DOCKER_ORGS}/{DOCKER_IMAGE}", auth)
-for package in packages:
-    tag_count = len(package["metadata"]["container"]["tags"])
-    if tag_count == 0:
-        continue
-    tag = package["metadata"]["container"]["tags"][0]
-    if not tag.endswith("amd64") or "cuda" in tag or "prebuilt" not in tag:
-        continue
+# dxf = DXF("ghcr.io", f"{DOCKER_ORGS}/{DOCKER_IMAGE}", auth)
+# for package in packages:
+#     tag_count = len(package["metadata"]["container"]["tags"])
+#     if tag_count == 0:
+#         continue
+#     tag = package["metadata"]["container"]["tags"][0]
+#     if not tag.endswith("amd64") or "cuda" in tag or "prebuilt" not in tag:
+#         continue
 
-    print(tag)
-    manifest = try_cache(f"docker_{tag}", lambda: dxf.get_manifest(tag))
-    if manifest is None:
-        print(f"Failed to fetch manifest for {tag}")
-        continue
-    metadata = json.loads(
-        (manifest["linux/amd64"] if type(manifest) is dict else manifest)
-    )
-    # print(metadata)
+#     print(tag)
+#     manifest = try_cache(f"docker_{tag}", lambda: dxf.get_manifest(tag))
+#     if manifest is None:
+#         print(f"Failed to fetch manifest for {tag}")
+#         continue
+#     metadata = json.loads(
+#         (manifest["linux/amd64"] if type(manifest) is dict else manifest)
+#     )
+#     # print(metadata)
 
-    total_size = sum([layer["size"] for layer in metadata["layers"]])
-    docker_images.append(
-        {
-            "size": total_size,
-            "date": package["updated_at"].strftime("%Y/%m/%d %H:%M:%S"),
-            "tag": tag,
-        }
-    )
+#     total_size = sum([layer["size"] for layer in metadata["layers"]])
+#     docker_images.append(
+#         {
+#             "size": total_size,
+#             "date": package["updated_at"].strftime("%Y/%m/%d %H:%M:%S"),
+#             "tag": tag,
+#         }
+#     )
 
 
 ####################
@@ -172,7 +172,7 @@ for package in packages:
 
 json_data = {
     "workflow_time": [],
-    "docker_images": docker_images,
+    # "docker_images": docker_images,
 }
 
 for run in workflow_runs:
