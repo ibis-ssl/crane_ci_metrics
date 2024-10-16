@@ -124,42 +124,6 @@ for run in workflow_runs:
     }
 
 ####################
-# Pull request analysis
-####################
-
-pull_requests_api = github_api.GithubPullRequestAPI(github_token)
-all_pr = pull_requests_api.get_all_pull_requests(REPO)
-
-# Calculate average time to be closed
-pr_per_month = {}
-five_close_per_month = {}
-
-closed_pr = [pr for pr in all_pr if pr["state"] == "closed"]
-print("Total closed PR:", len(all_pr))
-average_time_to_be_closed = sum(
-    [(pr["closed_at"] - pr["created_at"]).total_seconds() for pr in closed_pr]
-) / len(closed_pr)
-
-print("Average time to be closed:", average_time_to_be_closed)
-
-for pr in closed_pr:
-    month = pr["closed_at"].strftime("%Y/%m")
-    if month not in pr_per_month:
-        pr_per_month[month] = []
-    pr_per_month[month].append(pr)
-
-for month in pr_per_month.keys():
-    print("PR: ", month, len(pr_per_month[month]))
-    closed_time = [
-        (pr["closed_at"] - pr["created_at"]).total_seconds()
-        for pr in pr_per_month[month]
-    ]
-    five_close_per_month[month] = np.quantile(
-        closed_time, [0, 0.25, 0.5, 0.75, 1]
-    ).tolist()
-    print("Avg: ", closed_time)
-
-####################
 # Docker image analysis
 ####################
 
@@ -208,11 +172,6 @@ for package in packages:
 
 json_data = {
     "workflow_time": [],
-    "pulls": {
-        "total": len(all_pr),
-        "closed": len(closed_pr),
-        "closed_per_month": five_close_per_month,
-    },
     "docker_images": docker_images,
 }
 
