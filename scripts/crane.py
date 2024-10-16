@@ -10,20 +10,13 @@ import numpy as np
 import json
 
 # Constant
-REPO = "autowarefoundation/autoware"
-SPELL_REPO = "autowarefoundation/autoware.universe"
+REPO = "ibis-ssl/crane"
 
-BUILD_WORKFLOW_ID = "build-main-self-hosted.yaml"
-BUILD_LOG_ID = "build-main-self-hosted/9_Build.txt"
-# after merging this pull-request, the log ID is changed
-# PR: https://github.com/autowarefoundation/autoware/pull/4191
-BUILD_LOG_ID_2 = "build-main-self-hosted (cuda)/6_Build 'autoware-universe'.txt"
+BUILD_WORKFLOW_ID = "full_build.yaml"
+BUILD_LOG_ID = "0_FullBuild (humble).txt"
 
-SPELL_WORKFLOW_ID = "spell-check-all.yaml"
-SPELL_LOG_ID = "spell-check-all/3_Run spell-check.txt"
-
-DOCKER_ORGS = "autowarefoundation"
-DOCKER_IMAGE = "autoware-universe"
+DOCKER_ORGS = "ibis-ssl"
+DOCKER_IMAGE = "crane"
 
 CACHE_DIR = "./cache/"
 
@@ -111,8 +104,6 @@ for run in workflow_runs:
 
     if BUILD_LOG_ID in logs.keys():
         build_log_text = logs[BUILD_LOG_ID]
-    elif BUILD_LOG_ID_2 in logs.keys():
-        build_log_text = logs[BUILD_LOG_ID_2]
     analyzer = ColconLogAnalyzer(build_log_text)
 
     package_duration_list = analyzer.get_build_duration_list()
@@ -133,54 +124,11 @@ for run in workflow_runs:
     }
 
 ####################
-# Spell check analysis
-####################
-
-spellcheck_runs = workflow_api.get_workflow_duration_list(
-    SPELL_REPO, SPELL_WORKFLOW_ID, accurate=False
-)
-
-spellcheck_re = re.compile(r"##\[error\](\d+) spelling issues found")
-spell_checks = []
-
-for run in spellcheck_runs:
-    # older than 90 days
-    older_days = (datetime.now() - run["created_at"]).days
-
-    try:
-        logs = try_cache(
-            f"{SPELL_REPO}-{run['id']}",
-            lambda: workflow_api.get_workflow_logs(SPELL_REPO, run["id"])
-            if older_days < 90
-            else None,
-        )
-    except Exception as e:
-        print(f"Log for run_id={run['id']} cannot be fetched. {e}")
-        continue
-
-    spell_log_text = logs[SPELL_LOG_ID]
-    spellcheck_result = spellcheck_re.search(spell_log_text)
-
-    if spellcheck_result is not None:
-        spellcheck_count = int(spellcheck_result.group(1))
-        print(
-            f"Spell check error found in run_id={run['id']}, count={spellcheck_count}"
-        )
-
-        spell_checks.append(
-            {
-                "run_id": run["id"],
-                "date": run["created_at"].strftime("%Y/%m/%d %H:%M:%S"),
-                "count": spellcheck_count,
-            }
-        )
-
-####################
 # Pull request analysis
 ####################
 
 pull_requests_api = github_api.GithubPullRequestAPI(github_token)
-all_pr = pull_requests_api.get_all_pull_requests(SPELL_REPO)
+all_pr = pull_requests_api.get_all_pull_requests(REPO)
 
 # Calculate average time to be closed
 pr_per_month = {}
@@ -260,7 +208,6 @@ for package in packages:
 
 json_data = {
     "workflow_time": [],
-    "spell_checks": spell_checks,
     "pulls": {
         "total": len(all_pr),
         "closed": len(closed_pr),
