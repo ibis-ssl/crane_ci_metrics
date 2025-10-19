@@ -13,7 +13,7 @@ import json
 REPO = "ibis-ssl/crane"
 
 BUILD_WORKFLOW_ID = "full_build.yaml"
-BUILD_LOG_ID = "0_FullBuild (humble).txt"
+BUILD_LOG_ID = "0_FullBuild (jazzy).txt"
 
 DOCKER_ORGS = "ibis-ssl"
 DOCKER_IMAGE = "crane"
