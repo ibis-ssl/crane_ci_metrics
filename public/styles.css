@@ -1,0 +1,240 @@
+/* ============================================
+   カラーパレット (ダークモード対応)
+   ============================================ */
+:root {
+  --bg-primary: #0d1117;      /* GitHub Dark背景 */
+  --bg-secondary: #161b22;    /* カード背景 */
+  --bg-tertiary: #21262d;     /* ホバー・アクセント */
+  --text-primary: #e6edf3;    /* メインテキスト */
+  --text-secondary: #7d8590;  /* サブテキスト */
+  --border-color: #30363d;    /* ボーダー */
+  --accent-blue: #58a6ff;     /* アクセントブルー */
+  --accent-green: #3fb950;    /* 成功色 */
+  --accent-orange: #d29922;   /* 警告色 */
+  --spacing-unit: 8px;        /* 余白の基本単位 */
+}
+
+/* ============================================
+   ベーススタイル
+   ============================================ */
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+}
+
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: calc(var(--spacing-unit) * 3);
+}
+
+/* ============================================
+   ヘッダー
+   ============================================ */
+.page-header {
+  background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+  border-radius: 12px;
+  padding: calc(var(--spacing-unit) * 4);
+  margin-bottom: calc(var(--spacing-unit) * 4);
+  border: 1px solid var(--border-color);
+}
+
+.page-header h1 {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin: 0 0 calc(var(--spacing-unit) * 2) 0;
+  color: var(--text-primary);
+}
+
+.page-header .subtitle {
+  font-size: 1.1rem;
+  color: var(--text-secondary);
+  margin-bottom: calc(var(--spacing-unit) * 3);
+}
+
+/* ============================================
+   メタデータバッジ
+   ============================================ */
+.metadata-badges {
+  display: flex;
+  gap: calc(var(--spacing-unit) * 2);
+  flex-wrap: wrap;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.metadata-badges li {
+  display: flex;
+  gap: calc(var(--spacing-unit));
+}
+
+.metadata-badges img {
+  height: 20px;
+}
+
+/* ============================================
+   サマリーカード
+   ============================================ */
+.summary-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: calc(var(--spacing-unit) * 3);
+  margin-bottom: calc(var(--spacing-unit) * 4);
+}
+
+.summary-card {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: calc(var(--spacing-unit) * 3);
+  transition: all 0.2s ease;
+}
+
+.summary-card:hover {
+  border-color: var(--accent-blue);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+}
+
+.summary-card-label {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: calc(var(--spacing-unit));
+}
+
+.summary-card-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--accent-blue);
+  margin: 0;
+}
+
+.summary-card-subtitle {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin-top: calc(var(--spacing-unit));
+}
+
+/* ============================================
+   カードレイアウト
+   ============================================ */
+.chart-card {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: calc(var(--spacing-unit) * 3);
+  margin-bottom: calc(var(--spacing-unit) * 4);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.chart-card h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0 0 calc(var(--spacing-unit) * 3) 0;
+  color: var(--text-primary);
+  padding-bottom: calc(var(--spacing-unit) * 2);
+  border-bottom: 2px solid var(--border-color);
+}
+
+.chart-card .chart-description {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin-bottom: calc(var(--spacing-unit) * 2);
+}
+
+/* ============================================
+   フォーム要素
+   ============================================ */
+.form-select {
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-primary);
+  padding: calc(var(--spacing-unit) * 1.5);
+  font-size: 0.95rem;
+  margin-bottom: calc(var(--spacing-unit) * 3);
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.form-select:hover {
+  border-color: var(--accent-blue);
+}
+
+.form-select:focus {
+  outline: none;
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.2);
+}
+
+/* ============================================
+   グラフコンテナ
+   ============================================ */
+.chart-container {
+  background-color: transparent;
+  border-radius: 8px;
+  margin-top: calc(var(--spacing-unit) * 2);
+}
+
+/* ApexChartsのツールバーをダークモード対応 */
+.apexcharts-toolbar {
+  filter: brightness(0.8);
+}
+
+/* ============================================
+   レスポンシブデザイン
+   ============================================ */
+@media (max-width: 768px) {
+  .container {
+    padding: calc(var(--spacing-unit) * 2);
+  }
+
+  .page-header h1 {
+    font-size: 1.75rem;
+  }
+
+  .summary-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .chart-card {
+    padding: calc(var(--spacing-unit) * 2);
+  }
+}
+
+/* ============================================
+   テーブル (Tabulator用)
+   ============================================ */
+#package-table {
+  margin-top: calc(var(--spacing-unit) * 3);
+}
+
+.tabulator {
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.tabulator-header {
+  background-color: var(--bg-secondary);
+  border-bottom: 2px solid var(--border-color);
+}
+
+.tabulator-row {
+  background-color: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.tabulator-row:hover {
+  background-color: rgba(88, 166, 255, 0.1);
+}
+
+.tabulator-cell {
+  color: var(--text-primary);
+}

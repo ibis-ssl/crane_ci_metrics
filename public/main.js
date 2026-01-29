@@ -1,3 +1,17 @@
+// 時間(h)を分秒に変換
+const hoursToMmSs = (hours) => {
+  const totalSeconds = Math.round(hours * 3600);
+  const mins = Math.floor(totalSeconds / 60);
+  const secs = totalSeconds % 60;
+  return `${mins}分${secs}秒`;
+};
+
+// ApexChartsダークテーマ設定
+Apex.theme = {
+  mode: 'dark',
+  palette: 'palette1',
+};
+
 fetch('github_action_data.json')
   .then((res) => res.json())
   .then((json) => {
@@ -7,10 +21,38 @@ fetch('github_action_data.json')
     const mmss = (seconds) =>
       `${Math.ceil(seconds / 60)}m${(seconds % 60).toFixed(0)}s`;
 
+    // サマリーカードの更新
+    const totalBuilds = json.workflow_time.length;
+    const validDurations = json.workflow_time.filter(d => d.duration > 0);
+    const avgDuration = validDurations.length > 0
+      ? validDurations.reduce((sum, d) => sum + d.duration, 0) / validDurations.length
+      : 0;
+    const latestBuild = json.workflow_time[json.workflow_time.length - 1];
+
+    document.getElementById('total-builds').textContent = totalBuilds;
+    document.getElementById('average-duration').textContent = hoursToMmSs(avgDuration);
+    document.getElementById('latest-duration').textContent = hoursToMmSs(latestBuild.duration);
+    document.getElementById('latest-date').textContent = latestBuild.date;
+
+    // 共通チャートオプション（ダークテーマ）
+    const darkChartOptions = {
+      chart: {
+        background: 'transparent',
+        foreColor: '#e6edf3',
+      },
+      grid: {
+        borderColor: '#30363d',
+      },
+      tooltip: {
+        theme: 'dark',
+      },
+    };
+
     // Package duration chart
     const allPackageDurationOptions = {
       series: [],
       chart: {
+        ...darkChartOptions.chart,
         height: 500,
         type: 'donut',
         zoom: {
@@ -38,7 +80,9 @@ fetch('github_action_data.json')
         text: 'All package build duration',
         align: 'left',
       },
+      grid: darkChartOptions.grid,
       tooltip: {
+        ...darkChartOptions.tooltip,
         y: {
           formatter: mmss,
         },
@@ -81,6 +125,7 @@ fetch('github_action_data.json')
     const multiPackageDurationOptions = {
       series: [],
       chart: {
+        ...darkChartOptions.chart,
         height: 350,
         type: 'line',
         zoom: {
@@ -108,8 +153,9 @@ fetch('github_action_data.json')
         align: 'left',
       },
       grid: {
+        ...darkChartOptions.grid,
         row: {
-          colors: ['#f3f3f3', 'transparent'], // takes an array which will be repeated on columns
+          colors: ['transparent', 'transparent'],
           opacity: 0.5,
         },
       },
@@ -125,6 +171,7 @@ fetch('github_action_data.json')
         },
       },
       tooltip: {
+        ...darkChartOptions.tooltip,
         y: {
           formatter: (val) => val && mmss(val),
         },
@@ -166,6 +213,7 @@ fetch('github_action_data.json')
         },
       ],
       chart: {
+        ...darkChartOptions.chart,
         height: 350,
         type: 'line',
         zoom: {
@@ -193,8 +241,9 @@ fetch('github_action_data.json')
         align: 'left',
       },
       grid: {
+        ...darkChartOptions.grid,
         row: {
-          colors: ['#f3f3f3', 'transparent'], // takes an array which will be repeated on columns
+          colors: ['transparent', 'transparent'],
           opacity: 0.5,
         },
       },
@@ -203,16 +252,17 @@ fetch('github_action_data.json')
       },
       yaxis: {
         labels: {
-          formatter: (val) => `${val.toFixed(2)}h`,
+          formatter: (val) => hoursToMmSs(val),
         },
         title: {
           text: 'Duration',
         },
       },
       tooltip: {
+        ...darkChartOptions.tooltip,
         y: {
           formatter: function (val) {
-            return `${val.toFixed(2)}h`;
+            return hoursToMmSs(val);
           },
         },
       },
@@ -230,7 +280,7 @@ fetch('github_action_data.json')
       if (data.details !== null) {
         const option = document.createElement('option');
         option.value = index;
-        option.text = `${data.date} (${data.duration.toFixed(2)}h)`;
+        option.text = `${data.date} (${hoursToMmSs(data.duration)})`;
         buildSelector.appendChild(option);
       }
     });
