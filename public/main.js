@@ -6,9 +6,9 @@ const hoursToMmSs = (hours) => {
   return `${mins}分${secs}秒`;
 };
 
-// ApexChartsダークテーマ設定
+// ApexChartsライトテーマ設定
 Apex.theme = {
-  mode: 'dark',
+  mode: 'light',
   palette: 'palette1',
 };
 
@@ -34,17 +34,17 @@ fetch('github_action_data.json')
     document.getElementById('latest-duration').textContent = hoursToMmSs(latestBuild.duration);
     document.getElementById('latest-date').textContent = latestBuild.date;
 
-    // 共通チャートオプション（ダークテーマ）
-    const darkChartOptions = {
+    // 共通チャートオプション（ライトテーマ）
+    const lightChartOptions = {
       chart: {
         background: 'transparent',
-        foreColor: '#e6edf3',
+        foreColor: '#24292f',
       },
       grid: {
-        borderColor: '#30363d',
+        borderColor: '#d0d7de',
       },
       tooltip: {
-        theme: 'dark',
+        theme: 'light',
       },
     };
 
@@ -52,7 +52,7 @@ fetch('github_action_data.json')
     const allPackageDurationOptions = {
       series: [],
       chart: {
-        ...darkChartOptions.chart,
+        ...lightChartOptions.chart,
         height: 500,
         type: 'donut',
         zoom: {
@@ -80,9 +80,9 @@ fetch('github_action_data.json')
         text: 'All package build duration',
         align: 'left',
       },
-      grid: darkChartOptions.grid,
+      grid: lightChartOptions.grid,
       tooltip: {
-        ...darkChartOptions.tooltip,
+        ...lightChartOptions.tooltip,
         y: {
           formatter: mmss,
         },
@@ -125,7 +125,7 @@ fetch('github_action_data.json')
     const multiPackageDurationOptions = {
       series: [],
       chart: {
-        ...darkChartOptions.chart,
+        ...lightChartOptions.chart,
         height: 350,
         type: 'line',
         zoom: {
@@ -153,7 +153,7 @@ fetch('github_action_data.json')
         align: 'left',
       },
       grid: {
-        ...darkChartOptions.grid,
+        ...lightChartOptions.grid,
         row: {
           colors: ['transparent', 'transparent'],
           opacity: 0.5,
@@ -171,7 +171,7 @@ fetch('github_action_data.json')
         },
       },
       tooltip: {
-        ...darkChartOptions.tooltip,
+        ...lightChartOptions.tooltip,
         y: {
           formatter: (val) => val && mmss(val),
         },
@@ -213,7 +213,7 @@ fetch('github_action_data.json')
         },
       ],
       chart: {
-        ...darkChartOptions.chart,
+        ...lightChartOptions.chart,
         height: 350,
         type: 'line',
         zoom: {
@@ -241,7 +241,7 @@ fetch('github_action_data.json')
         align: 'left',
       },
       grid: {
-        ...darkChartOptions.grid,
+        ...lightChartOptions.grid,
         row: {
           colors: ['transparent', 'transparent'],
           opacity: 0.5,
@@ -259,7 +259,7 @@ fetch('github_action_data.json')
         },
       },
       tooltip: {
-        ...darkChartOptions.tooltip,
+        ...lightChartOptions.tooltip,
         y: {
           formatter: function (val) {
             return hoursToMmSs(val);

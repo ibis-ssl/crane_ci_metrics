@@ -1,16 +1,16 @@
 /* ============================================
-   カラーパレット (ダークモード対応)
+   カラーパレット (ライトモード)
    ============================================ */
 :root {
-  --bg-primary: #0d1117;      /* GitHub Dark背景 */
-  --bg-secondary: #161b22;    /* カード背景 */
-  --bg-tertiary: #21262d;     /* ホバー・アクセント */
-  --text-primary: #e6edf3;    /* メインテキスト */
-  --text-secondary: #7d8590;  /* サブテキスト */
-  --border-color: #30363d;    /* ボーダー */
-  --accent-blue: #58a6ff;     /* アクセントブルー */
-  --accent-green: #3fb950;    /* 成功色 */
-  --accent-orange: #d29922;   /* 警告色 */
+  --bg-primary: #ffffff;      /* 背景 */
+  --bg-secondary: #f6f8fa;    /* カード背景 */
+  --bg-tertiary: #f0f3f6;     /* ホバー・アクセント */
+  --text-primary: #24292f;    /* メインテキスト */
+  --text-secondary: #57606a;  /* サブテキスト */
+  --border-color: #d0d7de;    /* ボーダー */
+  --accent-blue: #0969da;     /* アクセントブルー */
+  --accent-green: #1a7f37;    /* 成功色 */
+  --accent-orange: #bf8700;   /* 警告色 */
   --spacing-unit: 8px;        /* 余白の基本単位 */
 }
 
@@ -97,7 +97,7 @@ body {
 .summary-card:hover {
   border-color: var(--accent-blue);
   transform: translateY(-2px);
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
 }
 
 .summary-card-label {
@@ -130,7 +130,7 @@ body {
   border-radius: 12px;
   padding: calc(var(--spacing-unit) * 3);
   margin-bottom: calc(var(--spacing-unit) * 4);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 .chart-card h2 {
@@ -170,7 +170,7 @@ body {
 .form-select:focus {
   outline: none;
   border-color: var(--accent-blue);
-  box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.2);
+  box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.2);
 }
 
 /* ============================================
@@ -182,9 +182,9 @@ body {
   margin-top: calc(var(--spacing-unit) * 2);
 }
 
-/* ApexChartsのツールバーをダークモード対応 */
+/* ApexChartsのツールバー */
 .apexcharts-toolbar {
-  filter: brightness(0.8);
+  /* ライトモードではデフォルトのまま */
 }
 
 /* ============================================
@@ -232,7 +232,7 @@ body {
 }
 
 .tabulator-row:hover {
-  background-color: rgba(88, 166, 255, 0.1);
+  background-color: rgba(9, 105, 218, 0.08);
 }
 
 .tabulator-cell {
