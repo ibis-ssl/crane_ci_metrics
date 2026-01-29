@@ -305,6 +305,29 @@ fetch('github_action_data.json')
       showPackageDuration(event.target.value);
     });
 
+    // 初期表示: 最新のビルドとその中で最もビルド時間が長いパッケージを表示
+    const latestBuildWithDetails = json.workflow_time
+      .map((data, index) => ({ data, index }))
+      .filter(({ data }) => data.details !== null)
+      .pop();
+
+    if (latestBuildWithDetails) {
+      const { data: latestData, index: latestIndex } = latestBuildWithDetails;
+
+      // 最新のビルドを表示
+      showAllPackageDuration(latestIndex);
+
+      // その中で最もビルド時間が長いパッケージを取得して表示
+      if (latestData.details) {
+        const longestPackage = Object.entries(latestData.details)
+          .sort(([, a], [, b]) => b - a)[0];
+
+        if (longestPackage) {
+          showPackageDuration(longestPackage[0]);
+        }
+      }
+    }
+
     // cSpell
     const spellOptions = {
       series: [
