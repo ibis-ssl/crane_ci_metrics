@@ -77,8 +77,16 @@ class GitHubWorkflowAPI:
         import zipfile
         from io import BytesIO
 
+        binary_extensions = (".gz", ".bin", ".log", ".png", ".jpg")
         zf = zipfile.ZipFile(BytesIO(zip_content))
-        return {name: zf.read(name).decode("utf-8") for name in zf.namelist()}
+        result = {}
+        for name in zf.namelist():
+            data = zf.read(name)
+            if any(name.endswith(ext) for ext in binary_extensions):
+                result[name] = data
+            else:
+                result[name] = data.decode("utf-8")
+        return result
 
     def get_run_artifacts(self, repo: str, run_id: int) -> list:
         endpoint = f"https://api.github.com/repos/{repo}/actions/runs/{run_id}/artifacts"

@@ -2,7 +2,7 @@
 name = "crane_ci_metrics"
 version = "0.1.0"
 authors = [{name="Autoware Foundation"}]
-dependencies = ["requests", "numpy", "python-dxf"]
+dependencies = ["requests", "numpy", "python-dxf", "protobuf"]
 readme = "README.md"
 
 [project.urls]
