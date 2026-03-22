@@ -73,25 +73,29 @@ class GitHubWorkflowAPI:
 
         return workflow_runs
 
-    def get_workflow_logs(self, repo: str, run_id: str):
+    def _extract_zip_to_dict(self, zip_content: bytes) -> dict:
         import zipfile
         from io import BytesIO
 
-        # This endpoint redirects to a zip file
+        zf = zipfile.ZipFile(BytesIO(zip_content))
+        return {name: zf.read(name).decode("utf-8") for name in zf.namelist()}
+
+    def get_run_artifacts(self, repo: str, run_id: int) -> list:
+        endpoint = f"https://api.github.com/repos/{repo}/actions/runs/{run_id}/artifacts"
+        response = requests.get(endpoint, headers=self.headers).json()
+        return response.get("artifacts", [])
+
+    def download_artifact(self, repo: str, artifact_id: int) -> dict:
+        endpoint = f"https://api.github.com/repos/{repo}/actions/artifacts/{artifact_id}/zip"
+        response = requests.get(endpoint, headers=self.headers, allow_redirects=True).content
+        return self._extract_zip_to_dict(response)
+
+    def get_workflow_logs(self, repo: str, run_id: str):
         endpoint = f"https://api.github.com/repos/{repo}/actions/runs/{run_id}/logs"
         response = requests.get(
             endpoint, headers=self.headers, allow_redirects=True
         ).content
-
-        response = zipfile.ZipFile(BytesIO(response))
-
-        # Extract all of log file into memory as string
-        logs = {}
-
-        for filename in response.namelist():
-            logs[filename] = response.read(filename).decode("utf-8")
-
-        return logs
+        return self._extract_zip_to_dict(response)
 
 
 class GithubPullRequestAPI:

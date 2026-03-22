@@ -39,7 +39,9 @@ jobs:
         run: |
           mkdir -p cache
           python scripts/crane.py --github_token ${{ secrets.GH_PAT }} --github_actor ${{ github.actor }}
+          python scripts/match_collector.py --github_token ${{ secrets.GH_PAT }}
           cp github_action_data.json public/
+          cp match_data.json public/
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

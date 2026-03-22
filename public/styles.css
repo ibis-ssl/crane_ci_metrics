@@ -209,6 +209,30 @@ body {
 }
 
 /* ============================================
+   ナビゲーション
+   ============================================ */
+.page-nav {
+  margin-top: calc(var(--spacing-unit) * 2);
+}
+
+.page-nav .nav-link {
+  color: var(--accent-blue);
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 0.95rem;
+  padding: calc(var(--spacing-unit)) calc(var(--spacing-unit) * 2);
+  border: 1px solid var(--accent-blue);
+  border-radius: 8px;
+  display: inline-block;
+  transition: all 0.2s ease;
+}
+
+.page-nav .nav-link:hover {
+  background-color: var(--accent-blue);
+  color: white;
+}
+
+/* ============================================
    テーブル (Tabulator用)
    ============================================ */
 #package-table {
