@@ -57,11 +57,37 @@
         </div>
       </div>
 
+      <!-- ファウルサマリーカード -->
+      <div class="summary-cards" id="foul-summary-cards">
+        <div class="summary-card">
+          <div class="summary-card-label">平均ファウル数/試合</div>
+          <div class="summary-card-value" id="avg-fouls">-</div>
+          <div class="summary-card-subtitle" id="avg-fouls-subtitle">ibis / TIGERs</div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-card-label">最頻ファウル種別 (ibis)</div>
+          <div class="summary-card-value" id="top-foul-type">-</div>
+          <div class="summary-card-subtitle" id="top-foul-count">-</div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-card-label">イエローカード累計</div>
+          <div class="summary-card-value" id="total-yc">-</div>
+          <div class="summary-card-subtitle">ibis / TIGERs</div>
+        </div>
+      </div>
+
       <!-- スコア推移 -->
       <div class="chart-card">
         <h2>スコア推移</h2>
         <p class="chart-description">試合ごとのゴール数の推移</p>
         <div class="chart-container" id="score-history-chart"></div>
+      </div>
+
+      <!-- ファウル推移 -->
+      <div class="chart-card">
+        <h2>ファウル推移</h2>
+        <p class="chart-description">試合ごとのファウル数の推移</p>
+        <div class="chart-container" id="foul-trend-chart"></div>
       </div>
 
       <!-- 勝敗分布 -->
@@ -76,6 +102,20 @@
         <h2>ファウル種別比較</h2>
         <p class="chart-description">全試合を通じたファウル種別ごとの累計回数</p>
         <div class="chart-container" id="foul-comparison-chart"></div>
+      </div>
+
+      <!-- ファウル種別内訳 -->
+      <div class="chart-card">
+        <h2>ファウル種別内訳</h2>
+        <p class="chart-description">チームごとのファウル種別分布</p>
+        <div class="row">
+          <div class="col-md-6">
+            <div class="chart-container" id="foul-donut-ibis"></div>
+          </div>
+          <div class="col-md-6">
+            <div class="chart-container" id="foul-donut-tigers"></div>
+          </div>
+        </div>
       </div>
 
       <!-- 試合結果テーブル -->
