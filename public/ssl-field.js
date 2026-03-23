@@ -47,6 +47,36 @@ function buildFieldSVG() {
     class: 'goal-field-svg',
   });
 
+  // グラデーション・フィルター定義
+  // SVGが複数ページに埋め込まれる際のID衝突を防ぐためユニークなプレフィックスを使用
+  const uid = Math.random().toString(36).slice(2, 8);
+  const defs = createSVGElement('defs');
+
+  // ドロップシャドウフィルター
+  const shadowFilter = createSVGElement('filter', {
+    id: `robot-shadow-${uid}`, x: '-40%', y: '-40%', width: '180%', height: '180%',
+  });
+  const fds = createSVGElement('feDropShadow', {
+    dx: '15', dy: '15', stdDeviation: '25',
+    'flood-color': '#000000', 'flood-opacity': '0.5',
+  });
+  shadowFilter.appendChild(fds);
+  defs.appendChild(shadowFilter);
+
+  // 黄チーム: 右上ハイライト → 外縁に向かって暗い黄
+  const gradYellow = createSVGElement('radialGradient', { id: `grad-yellow-${uid}`, cx: '38%', cy: '38%', r: '65%' });
+  gradYellow.appendChild(createSVGElement('stop', { offset: '0%',   'stop-color': '#FFF176' }));
+  gradYellow.appendChild(createSVGElement('stop', { offset: '100%', 'stop-color': '#F9A825' }));
+  defs.appendChild(gradYellow);
+
+  // 青チーム: 右上ハイライト → 外縁に向かって濃い青
+  const gradBlue = createSVGElement('radialGradient', { id: `grad-blue-${uid}`, cx: '38%', cy: '38%', r: '65%' });
+  gradBlue.appendChild(createSVGElement('stop', { offset: '0%',   'stop-color': '#90CAF9' }));
+  gradBlue.appendChild(createSVGElement('stop', { offset: '100%', 'stop-color': '#1565C0' }));
+  defs.appendChild(gradBlue);
+
+  svg.appendChild(defs);
+
   // フィールド背景
   svg.appendChild(createSVGElement('rect', {
     x: vx, y: vy, width: vw, height: vh, fill: COLORS.field,
@@ -99,20 +129,25 @@ function buildFieldSVG() {
 
   // ロボット要素（yellow + blue、各16体分を事前生成）
   const robotElements = { yellow: [], blue: [] };
-  for (const [team, color] of [['yellow', COLORS.yellow_team], ['blue', COLORS.blue_team]]) {
+  for (const [team, gradId, strokeColor] of [
+    ['yellow', `url(#grad-yellow-${uid})`, '#E65100'],
+    ['blue',   `url(#grad-blue-${uid})`,   '#0D47A1'],
+  ]) {
     for (let i = 0; i < 16; i++) {
       const g = createSVGElement('g', { visibility: 'hidden', 'data-team': team, 'data-idx': i });
       const circle = createSVGElement('circle', {
-        r: FIELD.robot_radius, fill: color, opacity: 0.85,
-        stroke: 'white', 'stroke-width': 20,
+        r: FIELD.robot_radius, fill: gradId,
+        stroke: strokeColor, 'stroke-width': 22,
+        filter: `url(#robot-shadow-${uid})`,
       });
       const dirLine = createSVGElement('line', {
         x1: 0, y1: 0, x2: FIELD.robot_radius, y2: 0,
-        stroke: 'white', 'stroke-width': 25,
+        stroke: 'white', 'stroke-width': 28,
       });
       const label = createSVGElement('text', {
         'text-anchor': 'middle', 'dominant-baseline': 'central',
         fill: 'white', 'font-size': 120, 'font-weight': 'bold',
+        stroke: strokeColor, 'stroke-width': 25, 'paint-order': 'stroke',
         'pointer-events': 'none',
       });
       label.textContent = String(i);
