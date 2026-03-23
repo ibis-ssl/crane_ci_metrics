@@ -49,9 +49,28 @@ def find_log_artifact(artifacts: list) -> dict | None:
 parser = argparse.ArgumentParser(description="Fetch goal scene data from SSL game logs.")
 parser.add_argument("--github_token", required=True)
 parser.add_argument("--list-artifacts", action="store_true", help="アーティファクト名を一覧表示して終了")
+parser.add_argument(
+    "--incremental",
+    action="store_true",
+    help="インクリメンタルモード: 新規データのみ追加し既存データを保持する",
+)
 args = parser.parse_args()
 
 workflow_api = github_api.GitHubWorkflowAPI(args.github_token)
+
+# インクリメンタルモード: 前回の出力JSONを読み込む
+prev_scenes = []
+existing_run_ids = set()
+if args.incremental:
+    prev_cache = pathlib.Path(CACHE_DIR) / "goal_scenes.json"
+    if prev_cache.exists():
+        with open(prev_cache, "r") as f:
+            prev_data = json.load(f)
+        prev_scenes = prev_data.get("scenes", [])
+        existing_run_ids = {s["run_id"] for s in prev_scenes}
+        print(f"インクリメンタルモード: 既存 {len(existing_run_ids)} 件のrunをスキップ")
+    else:
+        print("インクリメンタルモード: 前回データなし、フルモードで実行します")
 
 workflow_runs = workflow_api.get_workflow_duration_list(REPO, MATCH_WORKFLOW_ID, accurate=False)
 
@@ -83,6 +102,9 @@ skipped_no_log = 0
 
 for run in workflow_runs:
     run_id = run["id"]
+    if run_id in existing_run_ids:
+        continue
+
     date_str = run["created_at"].strftime("%Y/%m/%d %H:%M:%S")
 
     # キャッシュにゴールシーンデータがあればスキップ
@@ -155,10 +177,11 @@ for run in workflow_runs:
     all_scenes.extend(scenes)
     processed_runs += 1
 
-# ゴールシーン一覧を出力
-output = {"scenes": all_scenes}
+# ゴールシーン一覧を出力（前回データと合算）
+merged_scenes = prev_scenes + all_scenes
+output = {"scenes": merged_scenes}
 with open("goal_scenes.json", "w", encoding="utf-8") as f:
     json.dump(output, f, indent=2, ensure_ascii=False)
 
-print(f"\n完了: {processed_runs}試合, {len(all_scenes)}ゴールシーンを goal_scenes.json に書き出しました")
+print(f"\n完了: 新規 {processed_runs}試合/{len(all_scenes)}シーン追加 (既存 {len(prev_scenes)}シーンと合計 {len(merged_scenes)}シーン)")
 print(f"  (アーティファクトなし: {skipped_no_artifact}, ログなし: {skipped_no_log})")

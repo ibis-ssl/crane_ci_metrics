@@ -35,15 +35,40 @@ jobs:
           path: cache
           key: actions
 
+      - name: Detect analysis mode
+        id: detect-mode
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            CHANGED=$(git diff HEAD~1 --name-only -- 'scripts/' 'public/' 2>/dev/null || echo "")
+            if [ -n "$CHANGED" ]; then
+              echo "mode=full" >> $GITHUB_OUTPUT
+              echo "ソースコード変更を検出: フルモードで実行します"
+              echo "$CHANGED"
+            else
+              echo "mode=incremental" >> $GITHUB_OUTPUT
+              echo "ソースコード変更なし: インクリメンタルモードで実行します"
+            fi
+          else
+            echo "mode=incremental" >> $GITHUB_OUTPUT
+            echo "スケジュール/手動実行: インクリメンタルモードで実行します"
+          fi
+
       - name: Execute script
         run: |
           mkdir -p cache
-          python scripts/crane.py --github_token ${{ secrets.GH_PAT }} --github_actor ${{ github.actor }}
-          python scripts/match_collector.py --github_token ${{ secrets.GH_PAT }}
-          python scripts/goal_scene_collector.py --github_token ${{ secrets.GH_PAT }}
+          INCREMENTAL_FLAG=""
+          if [ "${{ steps.detect-mode.outputs.mode }}" = "incremental" ]; then
+            INCREMENTAL_FLAG="--incremental"
+          fi
+          python scripts/crane.py --github_token ${{ secrets.GH_PAT }} --github_actor ${{ github.actor }} $INCREMENTAL_FLAG
+          python scripts/match_collector.py --github_token ${{ secrets.GH_PAT }} $INCREMENTAL_FLAG
+          python scripts/goal_scene_collector.py --github_token ${{ secrets.GH_PAT }} $INCREMENTAL_FLAG
           cp github_action_data.json public/
           cp match_data.json public/
           cp goal_scenes.json public/
+          cp github_action_data.json cache/
+          cp match_data.json cache/
+          cp goal_scenes.json cache/
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

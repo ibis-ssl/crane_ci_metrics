@@ -79,9 +79,28 @@ def parse_match_result(text: str) -> dict | None:
 
 parser = argparse.ArgumentParser(description="Fetch match-vs-tigers result data.")
 parser.add_argument("--github_token", required=True)
+parser.add_argument(
+    "--incremental",
+    action="store_true",
+    help="インクリメンタルモード: 新規データのみ追加し既存データを保持する",
+)
 args = parser.parse_args()
 
 workflow_api = github_api.GitHubWorkflowAPI(args.github_token)
+
+# インクリメンタルモード: 前回の出力JSONを読み込む
+prev_matches = []
+existing_run_ids = set()
+if args.incremental:
+    prev_cache = pathlib.Path(CACHE_DIR) / "match_data.json"
+    if prev_cache.exists():
+        with open(prev_cache, "r") as f:
+            prev_data = json.load(f)
+        prev_matches = prev_data.get("matches", [])
+        existing_run_ids = {m["run_id"] for m in prev_matches}
+        print(f"インクリメンタルモード: 既存 {len(existing_run_ids)} 件のrunをスキップ")
+    else:
+        print("インクリメンタルモード: 前回データなし、フルモードで実行します")
 
 workflow_runs = workflow_api.get_workflow_duration_list(REPO, MATCH_WORKFLOW_ID, accurate=False)
 
@@ -95,6 +114,9 @@ for run in workflow_runs:
         continue
 
     run_id = run["id"]
+    if run_id in existing_run_ids:
+        continue
+
     head_sha = run.get("head_sha", "")
 
     try:
@@ -142,11 +164,12 @@ for run in workflow_runs:
         **parsed,
     })
 
-matches.sort(key=lambda m: m["date"])
+all_matches = prev_matches + matches
+all_matches.sort(key=lambda m: m["date"])
 
-total = len(matches)
+total = len(all_matches)
 wins = losses = draws = 0
-for m in matches:
+for m in all_matches:
     if m["result"] == "CRANE WIN":
         wins += 1
     elif m["result"] == "TIGERs WIN":
@@ -154,8 +177,10 @@ for m in matches:
     elif m["result"] == "DRAW":
         draws += 1
 
+print(f"新規 {len(matches)} 件を追加 (既存 {len(prev_matches)} 件と合計 {total} 件)")
+
 json_data = {
-    "matches": matches,
+    "matches": all_matches,
     "summary": {
         "total": total,
         "wins": wins,
@@ -170,3 +195,4 @@ with open("match_data.json", "w", encoding="utf-8") as f:
 
 print(f"完了: {total}試合分のデータを match_data.json に書き出しました")
 print(f"  勝利: {wins}, 敗北: {losses}, 引き分け: {draws}")
+

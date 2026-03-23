@@ -1,13 +1,14 @@
 from datetime import datetime
 import re
 import argparse
+import pathlib
+import json
 
 import github_api
 from colcon_log_analyzer import ColconLogAnalyzer
 from dxf import DXF
 
 import numpy as np
-import json
 
 # Constant
 REPO = "ibis-ssl/crane"
@@ -21,11 +22,7 @@ DOCKER_IMAGE = "crane"
 CACHE_DIR = "./cache/"
 
 
-# Utility function
 def try_cache(key: str, f):
-    import pathlib
-    import json
-
     key = key.replace("/", "_")
     cache_path = pathlib.Path(CACHE_DIR) / key
 
@@ -55,6 +52,11 @@ parser.add_argument(
     required=True,
     help="GitHub username to authenticate with GitHub API (Packages).",
 )
+parser.add_argument(
+    "--incremental",
+    action="store_true",
+    help="インクリメンタルモード: 新規データのみ追加し既存データを保持する",
+)
 args = parser.parse_args()
 
 # Use the github_token passed as command-line argument
@@ -62,6 +64,18 @@ github_token = args.github_token
 github_actor = args.github_actor
 
 workflow_api = github_api.GitHubWorkflowAPI(github_token)
+
+prev_data = None
+existing_run_ids = set()
+if args.incremental:
+    prev_cache = pathlib.Path(CACHE_DIR) / "github_action_data.json"
+    if prev_cache.exists():
+        with open(prev_cache, "r") as f:
+            prev_data = json.load(f)
+        existing_run_ids = {e["run_id"] for e in prev_data.get("workflow_time", [])}
+        print(f"インクリメンタルモード: 既存 {len(existing_run_ids)} 件のrunをスキップ")
+    else:
+        print("インクリメンタルモード: 前回データなし、フルモードで実行します")
 
 # TODO: Enable accurate options when it runs on GitHub Actions (because of rate limit)
 workflow_runs = workflow_api.get_workflow_duration_list(
@@ -91,6 +105,9 @@ for run in workflow_runs:
 
     # skip
     if run["conclusion"] != "success":
+        continue
+
+    if run["id"] in existing_run_ids:
         continue
 
     try:
@@ -170,13 +187,11 @@ for run in workflow_runs:
 # Output JSON for Pages
 ####################
 
-json_data = {
-    "workflow_time": [],
-    # "docker_images": docker_images,
-}
-
+new_entries = []
 for run in workflow_runs:
-    json_data["workflow_time"].append(
+    if run["id"] in existing_run_ids:
+        continue
+    new_entries.append(
         {
             "run_id": run["id"],
             "date": run["created_at"].strftime("%Y/%m/%d %H:%M:%S"),
@@ -187,8 +202,14 @@ for run in workflow_runs:
         }
     )
 
+existing_entries = prev_data["workflow_time"] if prev_data else []
+json_data = {
+    "workflow_time": existing_entries + new_entries,
+    # "docker_images": docker_images,
+}
+
+print(f"新規 {len(new_entries)} 件を追加 (既存 {len(existing_entries)} 件と合計 {len(json_data['workflow_time'])} 件)")
+
 # Save the data to a JSON file
-
-
 with open("github_action_data.json", "w") as jsonfile:
     json.dump(json_data, jsonfile, indent=4)
