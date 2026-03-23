@@ -1,2 +1,10 @@
 __pycache__
 cache/
+
+# Node.js
+node_modules/
+
+# CI生成データ（CIが自動更新するため手動コミット不要）
+public/goal_scenes.json
+public/github_action_data.json
+public/match_data.json
