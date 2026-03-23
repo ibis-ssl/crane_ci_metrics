@@ -1,0 +1,451 @@
+/* ============================================
+   SSL ゲームログプレイヤー スタイル
+   ============================================ */
+
+/* ドロップゾーン */
+.player-drop-zone {
+  border: 2px dashed var(--border-color);
+  border-radius: 12px;
+  background: var(--bg-secondary);
+  padding: 48px 24px;
+  text-align: center;
+  margin-bottom: 24px;
+  transition: border-color 0.15s, background 0.15s;
+  cursor: pointer;
+}
+
+.player-drop-zone.drag-over {
+  border-color: var(--accent-blue);
+  background: #f0f6ff;
+}
+
+.drop-zone-inner {
+  pointer-events: none;
+}
+
+.drop-zone-icon {
+  font-size: 3rem;
+  margin-bottom: 12px;
+}
+
+.drop-zone-text {
+  font-size: 1.1rem;
+  color: var(--text-primary);
+  margin: 0 0 4px;
+}
+
+.drop-zone-sub {
+  color: var(--text-secondary);
+  margin: 0 0 12px;
+  font-size: 0.9rem;
+}
+
+.drop-zone-btn {
+  display: inline-block;
+  padding: 8px 20px;
+  background: var(--accent-blue);
+  color: white;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: opacity 0.15s;
+}
+
+.drop-zone-btn:hover { opacity: 0.85; }
+
+/* パースプログレス */
+.parse-progress-label {
+  color: var(--text-secondary);
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+}
+
+.parse-progress-bar-wrap {
+  width: 100%;
+  height: 6px;
+  background: var(--bg-tertiary);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.parse-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-blue), #2a89ff);
+  border-radius: 999px;
+  transition: width 0.1s;
+}
+
+/* メインレイアウト: フィールド + 情報パネル */
+.player-main-layout {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 16px;
+  margin-bottom: 16px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .player-main-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* フィールド */
+.player-field-wrap {
+  padding: 12px;
+}
+
+.player-field-container {
+  width: 100%;
+  aspect-ratio: 12 / 9;
+  background: #2d7a2d;
+  border-radius: 4px;
+  overflow: hidden;
+  cursor: grab;
+}
+
+.player-field-container:active {
+  cursor: grabbing;
+}
+
+.player-field-container svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+}
+
+.player-zoom-hint {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  text-align: center;
+  margin: 6px 0 0;
+}
+
+/* 情報パネル */
+.player-info-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.panel-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  margin: 0 0 12px;
+}
+
+/* スコアボード */
+.player-scoreboard {
+  padding: 16px;
+}
+
+.scoreboard-inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.score-team {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.score-team-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.ibis-team .score-team-name { color: #1e88e5; }
+.tigers-team .score-team-name { color: #e53935; }
+
+.score-value {
+  font-size: 2.5rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: var(--text-primary);
+}
+
+.score-sep {
+  font-size: 1.5rem;
+  color: var(--text-secondary);
+  line-height: 1;
+  padding-bottom: 12px;
+}
+
+/* レフェリー情報 */
+.player-referee {
+  padding: 16px;
+}
+
+.referee-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.referee-table th {
+  color: var(--text-secondary);
+  text-align: left;
+  padding: 4px 8px 4px 0;
+  white-space: nowrap;
+  font-weight: 600;
+  width: 6em;
+}
+
+.referee-table td {
+  color: var(--text-primary);
+  padding: 4px 0;
+  word-break: break-word;
+}
+
+/* ゴールログ */
+.player-goal-log {
+  padding: 16px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.goal-log-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85rem;
+}
+
+.goal-log-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.goal-log-item:hover {
+  background: var(--bg-tertiary);
+}
+
+.goal-log-badge {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.goal-log-badge.ibis   { background: #1e88e5; }
+.goal-log-badge.tigers { background: #e53935; }
+
+.goal-log-time {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8rem;
+}
+
+.goal-log-label {
+  color: var(--text-primary);
+}
+
+.no-data-text {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+/* プレイヤーコントロール */
+.player-controls-card {
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+/* タイムライン */
+.player-timeline-wrap {
+  margin-bottom: 12px;
+}
+
+.player-timeline-track {
+  position: relative;
+  height: 6px;
+  background: var(--bg-tertiary);
+  border-radius: 999px;
+  cursor: pointer;
+  margin: 12px 0 6px;
+  user-select: none;
+}
+
+.player-timeline-track:hover {
+  height: 8px;
+}
+
+.player-timeline-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-blue), #2a89ff);
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.player-timeline-thumb {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  background: white;
+  border: 2px solid var(--accent-blue);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.player-timeline-marker {
+  position: absolute;
+  top: 50%;
+  width: 3px;
+  height: 12px;
+  border-radius: 2px;
+  transform: translate(-1px, -50%);
+  pointer-events: none;
+}
+
+.player-timeline-marker.ibis   { background: #1e88e5; }
+.player-timeline-marker.tigers { background: #e53935; }
+
+.player-time-display {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+
+.time-current {
+  color: var(--accent-blue);
+  font-weight: 700;
+}
+
+.time-sep { color: var(--border-color); }
+
+/* トランスポート */
+.player-transport {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.transport-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-primary);
+  cursor: pointer;
+  padding: 0;
+  width: 36px;
+  height: 36px;
+  font-size: 1rem;
+  transition: background 0.1s;
+}
+
+.transport-btn:hover { background: var(--bg-tertiary); }
+
+.transport-btn.play-btn {
+  background: var(--accent-blue);
+  border-color: var(--accent-blue);
+  color: white;
+  width: 44px;
+  height: 44px;
+  font-size: 1.1rem;
+}
+
+.transport-btn.play-btn:hover { opacity: 0.9; }
+
+.transport-btn.small-btn {
+  width: auto;
+  padding: 0 12px;
+  font-size: 0.85rem;
+}
+
+.transport-sep {
+  flex: 1;
+}
+
+.speed-label {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.speed-btns {
+  display: flex;
+  gap: 4px;
+}
+
+.speed-btn {
+  padding: 4px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+
+.speed-btn:hover { background: var(--bg-tertiary); }
+
+.speed-btn.active {
+  background: var(--accent-blue);
+  border-color: var(--accent-blue);
+  color: white;
+  font-weight: 700;
+}
+
+/* キーボードショートカット */
+.player-shortcuts {
+  padding: 10px 16px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.shortcut-title {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.shortcut-item {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  font-size: 0.78rem;
+  font-family: monospace;
+  color: var(--text-primary);
+  line-height: 1.4;
+}

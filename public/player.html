@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ibis-ssl SSL ゲームログプレイヤー</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+      integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM"
+      crossorigin="anonymous"
+    />
+    <link href="./styles.css" rel="stylesheet" />
+    <link href="./player.css" rel="stylesheet" />
+  </head>
+  <body>
+    <div class="container">
+      <!-- ヘッダー -->
+      <header class="page-header">
+        <h1>SSL ゲームログプレイヤー</h1>
+        <p class="subtitle">.log.gz ファイルをドロップして試合全体を再生</p>
+        <nav class="page-nav">
+          <a href="./index.html" class="nav-link">← ビルド時間分析</a>
+          <a href="./match.html" class="nav-link" style="margin-left: 8px;">TIGERs対戦統計</a>
+          <a href="./goals.html" class="nav-link" style="margin-left: 8px;">ゴールシーン一覧</a>
+        </nav>
+      </header>
+
+      <!-- ファイルドロップエリア -->
+      <div id="drop-zone" class="player-drop-zone">
+        <div class="drop-zone-inner">
+          <div class="drop-zone-icon">📂</div>
+          <p class="drop-zone-text">.log.gz ファイルをここにドロップ</p>
+          <p class="drop-zone-sub">または</p>
+          <label class="drop-zone-btn">
+            ファイルを選択
+            <input type="file" id="file-input" accept=".gz,.log" style="display:none" />
+          </label>
+        </div>
+      </div>
+
+      <!-- プレイヤー本体（ファイル読み込み後に表示） -->
+      <div id="player-body" style="display:none">
+        <!-- プログレスバー（パース中） -->
+        <div id="parse-progress" class="chart-card" style="display:none">
+          <p class="parse-progress-label">ログをパース中...</p>
+          <div class="parse-progress-bar-wrap">
+            <div id="parse-progress-bar" class="parse-progress-bar" style="width:0%"></div>
+          </div>
+        </div>
+
+        <!-- フィールド + 情報パネル -->
+        <div class="player-main-layout">
+          <!-- SVGフィールド -->
+          <div class="player-field-wrap chart-card">
+            <div id="field-container" class="player-field-container">
+              <!-- SVG は JS で挿入 -->
+            </div>
+            <p class="player-zoom-hint">ホイール: ズーム　ドラッグ: パン　ダブルクリック: リセット</p>
+          </div>
+
+          <!-- 情報パネル -->
+          <div class="player-info-panel">
+            <!-- スコアボード -->
+            <div class="chart-card player-scoreboard">
+              <h3 class="panel-title">スコア</h3>
+              <div class="scoreboard-inner">
+                <div class="score-team ibis-team">
+                  <span class="score-team-name">ibis</span>
+                  <span id="score-ibis" class="score-value">0</span>
+                </div>
+                <span class="score-sep">–</span>
+                <div class="score-team tigers-team">
+                  <span class="score-team-name">TIGERs</span>
+                  <span id="score-tigers" class="score-value">0</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- レフェリー情報 -->
+            <div class="chart-card player-referee">
+              <h3 class="panel-title">レフェリー</h3>
+              <table class="referee-table">
+                <tr>
+                  <th>ステージ</th>
+                  <td id="ref-stage">–</td>
+                </tr>
+                <tr>
+                  <th>コマンド</th>
+                  <td id="ref-command">–</td>
+                </tr>
+              </table>
+            </div>
+
+            <!-- ゴールログ -->
+            <div class="chart-card player-goal-log">
+              <h3 class="panel-title">ゴールログ</h3>
+              <div id="goal-log-list" class="goal-log-list">
+                <span class="no-data-text">なし</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- プレイヤーコントロール -->
+        <div class="chart-card player-controls-card">
+          <!-- タイムライン -->
+          <div class="player-timeline-wrap">
+            <div id="timeline-track" class="player-timeline-track">
+              <div id="timeline-progress" class="player-timeline-progress"></div>
+              <div id="timeline-thumb" class="player-timeline-thumb"></div>
+              <!-- ゴールマーカーは JS で挿入 -->
+            </div>
+            <div class="player-time-display">
+              <span id="time-current" class="time-current">0:00.0</span>
+              <span class="time-sep">/</span>
+              <span id="time-total">0:00.0</span>
+            </div>
+          </div>
+
+          <!-- トランスポートボタン + 速度 -->
+          <div class="player-transport">
+            <button id="btn-step-back" class="transport-btn" title="1フレーム戻る (←)">⏮</button>
+            <button id="btn-play" class="transport-btn play-btn" title="再生/一時停止 (Space)">▶</button>
+            <button id="btn-step-fwd" class="transport-btn" title="1フレーム進む (→)">⏭</button>
+            <span class="transport-sep"></span>
+            <span class="speed-label">速度</span>
+            <div class="speed-btns" id="speed-btns">
+              <button class="speed-btn" data-speed="0.25">0.25x</button>
+              <button class="speed-btn" data-speed="0.5">0.5x</button>
+              <button class="speed-btn active" data-speed="1">1x</button>
+              <button class="speed-btn" data-speed="2">2x</button>
+              <button class="speed-btn" data-speed="4">4x</button>
+            </div>
+            <span class="transport-sep"></span>
+            <button id="btn-change-file" class="transport-btn small-btn" title="別のファイルを開く">📂 変更</button>
+          </div>
+        </div>
+
+        <!-- キーボードショートカット -->
+        <div class="player-shortcuts chart-card">
+          <span class="shortcut-title">ショートカット:</span>
+          <span class="shortcut-item"><kbd>Space</kbd> 再生/一時停止</span>
+          <span class="shortcut-item"><kbd>←</kbd><kbd>→</kbd> 1フレーム</span>
+          <span class="shortcut-item"><kbd>Shift+←</kbd><kbd>Shift+→</kbd> 1秒</span>
+          <span class="shortcut-item"><kbd>[</kbd><kbd>]</kbd> 速度変更</span>
+          <span class="shortcut-item"><kbd>Home</kbd><kbd>End</kbd> 先頭/末尾</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- CDN ライブラリ -->
+    <script src="https://cdn.jsdelivr.net/npm/protobufjs@7/dist/protobuf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pako@2/dist/pako.inflate.min.js"></script>
+    <!-- 共有モジュール -->
+    <script src="./ssl-field.js"></script>
+    <script src="./ssl-log-parser.js"></script>
+    <!-- プレイヤー本体 -->
+    <script src="./player.js"></script>
+  </body>
+</html>

@@ -1,174 +1,14 @@
-// SSL フィールド定数 (mm単位)
-const FIELD = {
-  length: 12000,
-  width: 9000,
-  goal_width: 1800,
-  goal_depth: 180,
-  penalty_area_length: 1800,
-  penalty_area_width: 3600,
-  center_circle_radius: 500,
-  ball_radius: 43,
-  robot_radius: 90,
-};
-
-// チームカラー
-const COLORS = {
-  ibis: '#1e88e5',     // 黄チーム=ibis(青表示)
-  tigers: '#e53935',   // 青チーム=TIGERs(赤表示)
-  ball: '#ff8c00',
-  field: '#2d7a2d',
-  line: '#ffffff',
-  goal: '#cccccc',
-};
-
-const SVG_NS = 'http://www.w3.org/2000/svg';
-const VIEW_MARGIN = 700;  // フィールド外のマージン(mm)
-
-function createSVGElement(tag, attrs = {}) {
-  const el = document.createElementNS(SVG_NS, tag);
-  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
-  return el;
-}
-
-// SVGフィールドを描画して要素IDマップを返す
-function buildFieldSVG(sceneId) {
-  const vx = -FIELD.length / 2 - VIEW_MARGIN;
-  const vy = -FIELD.width / 2 - VIEW_MARGIN;
-  const vw = FIELD.length + VIEW_MARGIN * 2;
-  const vh = FIELD.width + VIEW_MARGIN * 2;
-
-  const svg = createSVGElement('svg', {
-    viewBox: `${vx} ${vy} ${vw} ${vh}`,
-    preserveAspectRatio: 'xMidYMid meet',
-    class: 'goal-field-svg',
-  });
-
-  // フィールド背景
-  svg.appendChild(createSVGElement('rect', {
-    x: vx, y: vy, width: vw, height: vh, fill: COLORS.field,
-  }));
-
-  // フィールド外枠
-  svg.appendChild(createSVGElement('rect', {
-    x: -FIELD.length / 2, y: -FIELD.width / 2,
-    width: FIELD.length, height: FIELD.width,
-    fill: 'none', stroke: COLORS.line, 'stroke-width': 30,
-  }));
-
-  // センターライン
-  svg.appendChild(createSVGElement('line', {
-    x1: 0, y1: -FIELD.width / 2, x2: 0, y2: FIELD.width / 2,
-    stroke: COLORS.line, 'stroke-width': 30,
-  }));
-
-  // センターサークル
-  svg.appendChild(createSVGElement('circle', {
-    cx: 0, cy: 0, r: FIELD.center_circle_radius,
-    fill: 'none', stroke: COLORS.line, 'stroke-width': 30,
-  }));
-
-  // センタードット
-  svg.appendChild(createSVGElement('circle', {
-    cx: 0, cy: 0, r: 60, fill: COLORS.line,
-  }));
-
-  // ペナルティエリア (両端)
-  for (const side of [-1, 1]) {
-    const px = side * (FIELD.length / 2 - FIELD.penalty_area_length);
-    svg.appendChild(createSVGElement('rect', {
-      x: side > 0 ? px : -FIELD.length / 2,
-      y: -FIELD.penalty_area_width / 2,
-      width: FIELD.penalty_area_length,
-      height: FIELD.penalty_area_width,
-      fill: 'none', stroke: COLORS.line, 'stroke-width': 30,
-    }));
-
-    // ゴール
-    svg.appendChild(createSVGElement('rect', {
-      x: side > 0 ? FIELD.length / 2 : -FIELD.length / 2 - FIELD.goal_depth,
-      y: -FIELD.goal_width / 2,
-      width: FIELD.goal_depth,
-      height: FIELD.goal_width,
-      fill: 'none', stroke: COLORS.goal, 'stroke-width': 40,
-    }));
-  }
-
-  // ロボット要素（yellow + blue、各16体分を事前生成）
-  const robotElements = { yellow: [], blue: [] };
-  for (const [team, color] of [['yellow', COLORS.ibis], ['blue', COLORS.tigers]]) {
-    for (let i = 0; i < 16; i++) {
-      const g = createSVGElement('g', { visibility: 'hidden', 'data-team': team, 'data-idx': i });
-      const circle = createSVGElement('circle', {
-        r: FIELD.robot_radius, fill: color, opacity: 0.85,
-        stroke: 'white', 'stroke-width': 20,
-      });
-      const dirLine = createSVGElement('line', {
-        x1: 0, y1: 0, x2: FIELD.robot_radius, y2: 0,
-        stroke: 'white', 'stroke-width': 25,
-      });
-      const label = createSVGElement('text', {
-        'text-anchor': 'middle', 'dominant-baseline': 'central',
-        fill: 'white', 'font-size': 120, 'font-weight': 'bold',
-        'pointer-events': 'none',
-      });
-      label.textContent = String(i);
-      g.appendChild(circle);
-      g.appendChild(dirLine);
-      g.appendChild(label);
-      svg.appendChild(g);
-      robotElements[team].push(g);
-    }
-  }
-
-  // ボール要素
-  const ballEl = createSVGElement('circle', {
-    r: FIELD.ball_radius * 2.5, fill: COLORS.ball,
-    stroke: '#cc6600', 'stroke-width': 15, visibility: 'hidden',
-  });
-  svg.appendChild(ballEl);
-
-  return { svg, robotElements, ballEl };
-}
-
-function updateFrame(frame, robotElements, ballEl) {
-  // ボール更新
-  if (frame.ball) {
-    ballEl.setAttribute('cx', frame.ball.x);
-    ballEl.setAttribute('cy', -frame.ball.y);  // Y軸反転 (SVGは下が正)
-    ballEl.setAttribute('visibility', 'visible');
-  } else {
-    ballEl.setAttribute('visibility', 'hidden');
-  }
-
-  // ロボット更新
-  for (const [teamKey, svgTeam] of [['robots_yellow', 'yellow'], ['robots_blue', 'blue']]) {
-    const robots = frame[teamKey] || [];
-    const els = robotElements[svgTeam];
-
-    // 全要素を非表示に
-    els.forEach(g => g.setAttribute('visibility', 'hidden'));
-
-    for (const robot of robots) {
-      if (robot.id >= els.length) continue;
-      const g = els[robot.id];
-      const x = robot.x;
-      const y = -robot.y;  // Y軸反転
-      const theta = -(robot.theta || 0);  // 角度も反転
-      g.setAttribute('transform', `translate(${x},${y}) rotate(${theta * 180 / Math.PI})`);
-      g.setAttribute('visibility', 'visible');
-      // ラベルのID更新
-      g.querySelector('text').textContent = String(robot.id);
-    }
-  }
-}
+// ssl-field.js から FIELD, COLORS, SVG_NS, VIEW_MARGIN,
+// createSVGElement, buildFieldSVG, updateFrame をインポート（script タグで先に読み込む）
 
 class GoalScenePlayer {
-  constructor(scene, robotElements, ballEl, seekbar, timeDisplay) {
+  constructor(scene, robotElements, ballEl, seekbar, timeDisplay, onStop) {
     this.frames = scene.frames;
     this.robotElements = robotElements;
     this.ballEl = ballEl;
     this.seekbar = seekbar;
     this.timeDisplay = timeDisplay;
+    this.onStop = onStop;
     this.currentFrame = 0;
     this.playing = false;
     this.speed = 1.0;
@@ -176,6 +16,7 @@ class GoalScenePlayer {
     this.interval = 1000 / scene.fps;
     this.elapsed = 0;
     this._rafId = null;
+    this._boundLoop = this._loop.bind(this);
   }
 
   get totalFrames() { return this.frames.length; }
@@ -190,7 +31,7 @@ class GoalScenePlayer {
     if (this.currentFrame >= this.totalFrames - 1) this.currentFrame = 0;
     this.playing = true;
     this.lastTime = null;
-    this._rafId = requestAnimationFrame(this._loop.bind(this));
+    this._rafId = requestAnimationFrame(this._boundLoop);
   }
 
   pause() {
@@ -212,13 +53,14 @@ class GoalScenePlayer {
           this.currentFrame = this.totalFrames - 1;
           this.playing = false;
           this._render();
+          if (this.onStop) this.onStop();
           return;
         }
       }
     }
     this.lastTime = now;
     this._render();
-    this._rafId = requestAnimationFrame(this._loop.bind(this));
+    this._rafId = requestAnimationFrame(this._boundLoop);
   }
 
   _render() {
@@ -257,7 +99,7 @@ function buildSceneCard(scene) {
   // SVGフィールド
   const fieldContainer = document.createElement('div');
   fieldContainer.className = 'goal-field-container';
-  const { svg, robotElements, ballEl } = buildFieldSVG(scene.run_id + '_' + scene.goal_index);
+  const { svg, robotElements, ballEl } = buildFieldSVG();
   fieldContainer.appendChild(svg);
   card.appendChild(fieldContainer);
 
@@ -286,12 +128,15 @@ function buildSceneCard(scene) {
   timeDisplay.className = 'goal-time-display';
   timeDisplay.textContent = `0.0s / ${scene.frames[scene.frames.length - 1].t.toFixed(1)}s`;
 
-  const player = new GoalScenePlayer(scene, robotElements, ballEl, seekbar, timeDisplay);
-  player.seek(0);
-
   const playBtn = document.createElement('button');
   playBtn.className = 'goal-play-btn';
   playBtn.textContent = '▶';
+
+  const player = new GoalScenePlayer(scene, robotElements, ballEl, seekbar, timeDisplay, () => {
+    playBtn.textContent = '▶';
+  });
+  player.seek(0);
+
   playBtn.addEventListener('click', () => {
     if (player.playing) {
       player.pause();
@@ -307,11 +152,6 @@ function buildSceneCard(scene) {
     playBtn.textContent = '▶';
     player.seek(Number(seekbar.value));
   });
-
-  // 再生状態に合わせてボタンを更新
-  setInterval(() => {
-    if (!player.playing) playBtn.textContent = '▶';
-  }, 200);
 
   // 速度ボタン
   const speedBtns = document.createElement('div');
