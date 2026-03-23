@@ -1,0 +1,75 @@
+/* Material 3 Expressive Design Tokens - Player Dark Theme */
+
+:root {
+  /* === M3 Color System (Dark) === */
+
+  /* Primary */
+  --md-sys-color-primary: #A8C7FA;
+  --md-sys-color-on-primary: #062E6F;
+  --md-sys-color-primary-container: #1B4898;
+  --md-sys-color-on-primary-container: #D3E3FD;
+  --md-sys-color-primary-tint: rgba(168, 199, 250, 0.2);
+
+  /* Secondary */
+  --md-sys-color-secondary: #BDC7DC;
+  --md-sys-color-on-secondary: #273141;
+  --md-sys-color-secondary-container: #3D4758;
+  --md-sys-color-on-secondary-container: #D9E3F8;
+
+  /* Error */
+  --md-sys-color-error: #FFB4AB;
+  --md-sys-color-error-container: #93000A;
+
+  /* Surface */
+  --md-sys-color-surface: #111318;
+  --md-sys-color-on-surface: #E3E2E6;
+  --md-sys-color-on-surface-variant: #C4C6D0;
+  --md-sys-color-surface-container-lowest: #0E1013;
+  --md-sys-color-surface-container-low: #191C20;
+  --md-sys-color-surface-container: #1D2024;
+  --md-sys-color-surface-container-high: #282A2F;
+  --md-sys-color-surface-container-highest: #33353A;
+
+  /* Outline */
+  --md-sys-color-outline: #8E9099;
+  --md-sys-color-outline-variant: #44474F;
+
+  /* === App-specific colors === */
+  --app-color-success: #81C995;
+  --app-color-warning: #FDD663;
+  --app-color-team-yellow: #FDD663;
+  --app-color-team-yellow-container: rgba(253, 214, 99, 0.15);
+  --app-color-team-yellow-border: rgba(253, 214, 99, 0.3);
+  --app-color-team-blue: #5B9BF5;
+  --app-color-team-blue-container: rgba(91, 155, 245, 0.15);
+  --app-color-team-blue-border: rgba(91, 155, 245, 0.3);
+
+  /* === M3 Shape Scale (Expressive) === */
+  --md-sys-shape-corner-extra-small: 8px;
+  --md-sys-shape-corner-small: 12px;
+  --md-sys-shape-corner-medium: 16px;
+  --md-sys-shape-corner-large: 20px;
+  --md-sys-shape-corner-extra-large: 28px;
+  --md-sys-shape-corner-full: 999px;
+
+  /* === M3 Elevation === */
+  --md-sys-elevation-1: 0 1px 2px rgba(0,0,0,0.3), 0 1px 3px 1px rgba(0,0,0,0.15);
+  --md-sys-elevation-2: 0 1px 2px rgba(0,0,0,0.3), 0 2px 6px 2px rgba(0,0,0,0.15);
+  --md-sys-elevation-3: 0 4px 8px 3px rgba(0,0,0,0.15), 0 1px 3px rgba(0,0,0,0.3);
+
+  /* === M3 Motion (Expressive) === */
+  --md-sys-motion-duration-short: 150ms;
+  --md-sys-motion-duration-medium: 300ms;
+  --md-sys-motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+  --md-sys-motion-easing-emphasized-decelerate: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --md-sys-motion-easing-emphasized-accelerate: cubic-bezier(0.3, 0, 0.8, 0.15);
+  --md-sys-motion-easing-spring: cubic-bezier(0.35, 1.5, 0.65, 1);
+
+  /* === Typography === */
+  --md-sys-typescale-body-font: 'Inter', system-ui, -apple-system, sans-serif;
+  --md-sys-typescale-mono-font: 'JetBrains Mono', 'Fira Code', 'SF Mono', ui-monospace, monospace;
+
+  /* === Glassmorphism === */
+  --app-glass-blur: blur(16px);
+  --app-glass-border: rgba(196, 198, 208, 0.12);
+}

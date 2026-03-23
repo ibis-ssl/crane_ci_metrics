@@ -3,7 +3,7 @@
  *
  * ssl_log_parser.py のブラウザ版移植。
  * .log.gz ファイルを ArrayBuffer として受け取り、全フレームと
- * レフェリースナップショット、ゴールマーカーを返す。
+ * レフェリースナップショット、ゴールマーカー、ゲームイベント、チーム名を返す。
  *
  * SSL log format:
  *   Header : "SSL_LOG_FILE" (12 bytes) + version (int32 big-endian)
@@ -23,7 +23,6 @@ class SSLLogParser {
    */
   constructor(pbRoot) {
     this._root = pbRoot;
-    // メッセージ型のキャッシュ
     this._SSL_WrapperPacket      = pbRoot.lookupType('SSL_WrapperPacket');
     this._TrackerWrapperPacket   = pbRoot.lookupType('TrackerWrapperPacket');
     this._Referee                = pbRoot.lookupType('Referee');
@@ -33,14 +32,12 @@ class SSLLogParser {
    * .log.gz ファイルをパースする
    * @param {ArrayBuffer} gzipBuffer
    * @param {function} onProgress - (ratio: 0..1) コールバック（任意）
-   * @returns {{ frames, refereeSnapshots, goalMarkers, durationNs }}
+   * @returns {{ frames, refereeSnapshots, goalMarkers, gameEvents, teamNames, durationNs }}
    */
   async parse(gzipBuffer, onProgress) {
-    // 1. gzip 展開
     const data = await this._decompress(gzipBuffer);
     if (onProgress) onProgress(0.05);
 
-    // 2. メッセージ反復
     const frames = [];
     const refereeSnapshots = [];
     let hasTracker = false;
@@ -70,7 +67,7 @@ class SSLLogParser {
           if (frame) {
             if (!hasTracker) {
               hasTracker = true;
-              frames.length = 0;  // vision データを破棄
+              frames.length = 0;
             }
             frames.push(frame);
           }
@@ -85,15 +82,16 @@ class SSLLogParser {
 
     if (onProgress) onProgress(0.95);
 
-    // 3. ゴールマーカー検出
     const goalMarkers = this._detectGoals(refereeSnapshots);
+    const gameEvents  = this._extractGameEvents(refereeSnapshots);
+    const teamNames   = this._extractTeamNames(refereeSnapshots);
 
     const durationNs = frames.length > 1
       ? frames[frames.length - 1].timestampNs - frames[0].timestampNs
       : BigInt(0);
 
     if (onProgress) onProgress(1.0);
-    return { frames, refereeSnapshots, goalMarkers, durationNs };
+    return { frames, refereeSnapshots, goalMarkers, gameEvents, teamNames, durationNs };
   }
 
   // --- 内部メソッド ---
@@ -104,11 +102,8 @@ class SSLLogParser {
         const ds = new DecompressionStream('gzip');
         const stream = new Blob([buffer]).stream().pipeThrough(ds);
         return new Uint8Array(await new Response(stream).arrayBuffer());
-      } catch (e) {
-        // フォールバックへ
-      }
+      } catch (e) {}
     }
-    // pako フォールバック
     if (typeof pako === 'undefined') throw new Error('gzip展開失敗: pakoが見つかりません');
     return pako.inflate(new Uint8Array(buffer));
   }
@@ -117,16 +112,15 @@ class SSLLogParser {
     const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
     let offset = 0;
 
-    // ヘッダー検証
     const headerBytes = data.slice(0, 12);
     const headerStr = new TextDecoder().decode(headerBytes);
     if (headerStr !== SSL_LOG_HEADER) {
       throw new Error(`無効なSSLログヘッダー: "${headerStr}"`);
     }
-    offset = 16;  // 12 bytes header + 4 bytes version
+    offset = 16;
 
     while (offset + 16 <= data.byteLength) {
-      const timestampNs = view.getBigInt64(offset, false);  // big-endian
+      const timestampNs = view.getBigInt64(offset, false);
       const msgType     = view.getInt32(offset + 8, false);
       const msgSize     = view.getInt32(offset + 12, false);
       offset += 16;
@@ -178,7 +172,6 @@ class SSLLogParser {
         y: Math.round(r.pos.y * 1000),
         theta: r.orientation || 0,
       };
-      // TEAM_COLOR_YELLOW = 0, TEAM_COLOR_BLUE = 1
       if (r.robotId.teamColor === 0) robots_yellow.push(entry);
       else robots_blue.push(entry);
     }
@@ -196,9 +189,9 @@ class SSLLogParser {
       const blue   = (ref.blue   && ref.blue.score   != null) ? ref.blue.score   : 0;
 
       if (yellow > prevYellow) {
-        markers.push({ timestampNs, scoredBy: 'ibis', score: { ibis: yellow, tigers: blue } });
+        markers.push({ timestampNs, scoredBy: 'yellow', score: { yellow, blue } });
       } else if (blue > prevBlue) {
-        markers.push({ timestampNs, scoredBy: 'tigers', score: { ibis: yellow, tigers: blue } });
+        markers.push({ timestampNs, scoredBy: 'blue', score: { yellow, blue } });
       }
 
       prevYellow = yellow;
@@ -206,6 +199,116 @@ class SSLLogParser {
     }
 
     return markers;
+  }
+
+  /**
+   * refereeスナップショットからゲームイベントを抽出・重複排除する
+   * @returns {Array} 正規化済みゲームイベント配列
+   */
+  _extractGameEvents(refereeSnapshots) {
+    const seenIds = new Set();
+    const events = [];
+
+    // GameEvent の oneof フィールド名一覧 (位置情報を持つもの)
+    const oneofFields = [
+      'ballLeftFieldTouchLine', 'ballLeftFieldGoalLine', 'aimlessKick',
+      'attackerTooCloseToDefenseArea', 'defenderInDefenseArea', 'boundaryCrossing',
+      'keeperHeldBall', 'botDribbledBallTooFar', 'botPushedBot', 'botHeldBallDeliberately',
+      'botTippedOver', 'botDroppedParts', 'attackerTouchedBallInDefenseArea',
+      'botKickedBallTooFast', 'botCrashUnique', 'botCrashDrawn',
+      'defenderTooCloseToKickPoint', 'botTooFastInStop', 'botInterferedPlacement',
+      'possibleGoal', 'goal', 'invalidGoal', 'attackerDoubleTouchedBall',
+      'placementSucceeded', 'penaltyKickFailed', 'noProgressInGame', 'placementFailed',
+      'multipleCards', 'multipleFouls', 'botSubstitution', 'excessiveBotSubstitution',
+      'tooManyRobots', 'challengeFlag', 'challengeFlagHandled', 'emergencyStop',
+      'unsportingBehaviorMinor', 'unsportingBehaviorMajor',
+      'indirectGoal', 'chippedGoal', 'kickTimeout',
+      'attackerTouchedOpponentInDefenseArea', 'attackerTouchedOpponentInDefenseAreaSkipped',
+      'botCrashUniqueSkipped', 'botPushedBotSkipped', 'defenderInDefenseAreaPartially',
+      'multiplePlacementFailures',
+    ];
+
+    for (const { timestampNs, ref } of refereeSnapshots) {
+      if (!ref.gameEvents || ref.gameEvents.length === 0) continue;
+
+      for (const ge of ref.gameEvents) {
+        const id = ge.id || null;
+        if (id && seenIds.has(id)) continue;
+        if (id) seenIds.add(id);
+
+        // oneof フィールドからイベントデータを取得
+        let eventData = null;
+        let fieldName = null;
+        for (const f of oneofFields) {
+          if (ge[f] != null) {
+            eventData = ge[f];
+            fieldName = f;
+            break;
+          }
+        }
+
+        // チーム、ボット番号、位置を取得
+        let byTeam = null;
+        let byBot = null;
+        let location = null;
+
+        if (eventData) {
+          if (eventData.byTeam != null) {
+            // Team enum: UNKNOWN=0, YELLOW=1, BLUE=2
+            byTeam = eventData.byTeam === 1 ? 'yellow' : eventData.byTeam === 2 ? 'blue' : null;
+          }
+          if (eventData.byBot != null) byBot = eventData.byBot;
+          if (eventData.kickingBot != null && byBot == null) byBot = eventData.kickingBot;
+
+          if (eventData.location) {
+            location = { x: eventData.location.x || 0, y: eventData.location.y || 0 };
+          } else if (eventData.ballLocation) {
+            location = { x: eventData.ballLocation.x || 0, y: eventData.ballLocation.y || 0 };
+          }
+        }
+
+        // createdTimestamp を BigInt に統一
+        let eventTimestampNs = timestampNs;
+        if (ge.createdTimestamp != null) {
+          try {
+            eventTimestampNs = BigInt(ge.createdTimestamp.toString());
+          } catch (_) {}
+        }
+
+        events.push({
+          id: id || `${String(timestampNs)}_${ge.type}_${events.length}`,
+          timestampNs: eventTimestampNs,
+          type: ge.type || 0,
+          fieldName,
+          byTeam,
+          byBot,
+          location,  // メートル単位
+          eventData,
+        });
+      }
+    }
+
+    // タイムスタンプ順にソート
+    events.sort((a, b) => (a.timestampNs < b.timestampNs ? -1 : a.timestampNs > b.timestampNs ? 1 : 0));
+    return events;
+  }
+
+  /**
+   * refereeスナップショットから最初のチーム名を取得する
+   * @returns {{ yellow: string, blue: string }}
+   */
+  _extractTeamNames(refereeSnapshots) {
+    for (const { ref } of refereeSnapshots) {
+      const yellowName = ref.yellow && ref.yellow.name;
+      const blueName   = ref.blue   && ref.blue.name;
+      if (yellowName || blueName) {
+        return {
+          yellow: yellowName || 'Yellow',
+          blue:   blueName   || 'Blue',
+        };
+      }
+    }
+    return { yellow: 'Yellow', blue: 'Blue' };
   }
 }
 

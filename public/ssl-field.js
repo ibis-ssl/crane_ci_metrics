@@ -14,8 +14,11 @@ const FIELD = {
 };
 
 const COLORS = {
-  ibis: '#1e88e5',     // 黄チーム=ibis(青表示)
-  tigers: '#e53935',   // 青チーム=TIGERs(赤表示)
+  yellow_team: '#FDD663',  // SSL yellow チーム
+  blue_team:   '#5B9BF5',  // SSL blue チーム
+  // goals.js との後方互換エイリアス
+  ibis:   '#FDD663',
+  tigers: '#5B9BF5',
   ball: '#ff8c00',
   field: '#2d7a2d',
   line: '#ffffff',
@@ -23,7 +26,7 @@ const COLORS = {
 };
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
-const VIEW_MARGIN = 700;  // フィールド外のマージン(mm)
+const VIEW_MARGIN = 700;
 
 function createSVGElement(tag, attrs = {}) {
   const el = document.createElementNS(SVG_NS, tag);
@@ -96,7 +99,7 @@ function buildFieldSVG() {
 
   // ロボット要素（yellow + blue、各16体分を事前生成）
   const robotElements = { yellow: [], blue: [] };
-  for (const [team, color] of [['yellow', COLORS.ibis], ['blue', COLORS.tigers]]) {
+  for (const [team, color] of [['yellow', COLORS.yellow_team], ['blue', COLORS.blue_team]]) {
     for (let i = 0; i < 16; i++) {
       const g = createSVGElement('g', { visibility: 'hidden', 'data-team': team, 'data-idx': i });
       const circle = createSVGElement('circle', {
@@ -128,14 +131,18 @@ function buildFieldSVG() {
   });
   svg.appendChild(ballEl);
 
-  return { svg, robotElements, ballEl };
+  // ゲームイベントオーバーレイ（最前面）
+  const eventOverlay = createSVGElement('g', { class: 'game-event-overlay' });
+  svg.appendChild(eventOverlay);
+
+  return { svg, robotElements, ballEl, eventOverlay };
 }
 
 function updateFrame(frame, robotElements, ballEl) {
   // ボール更新
   if (frame.ball) {
     ballEl.setAttribute('cx', frame.ball.x);
-    ballEl.setAttribute('cy', -frame.ball.y);  // Y軸反転 (SVGは下が正)
+    ballEl.setAttribute('cy', -frame.ball.y);
     ballEl.setAttribute('visibility', 'visible');
   } else {
     ballEl.setAttribute('visibility', 'hidden');
@@ -159,12 +166,93 @@ function updateFrame(frame, robotElements, ballEl) {
   }
 }
 
+/**
+ * ゲームイベントオーバーレイを更新する
+ * @param {SVGGElement} overlayGroup - buildFieldSVG() が返す eventOverlay
+ * @param {Array} events - { type, byTeam, byBot, location, opacity, label, icon, details } の配列
+ *   location: { x, y } mm単位
+ */
+function updateGameEvents(overlayGroup, events) {
+  // 既存子要素を全削除
+  while (overlayGroup.firstChild) overlayGroup.removeChild(overlayGroup.firstChild);
+
+  for (const ev of events) {
+    if (!ev.location) continue;
+
+    const x = ev.location.x;
+    const y = -ev.location.y;  // Y軸反転
+
+    const teamColor = ev.byTeam === 'yellow' ? COLORS.yellow_team
+      : ev.byTeam === 'blue' ? COLORS.blue_team
+      : '#888888';
+
+    const g = createSVGElement('g', { opacity: String(ev.opacity) });
+
+    // 背景円
+    g.appendChild(createSVGElement('circle', {
+      cx: x, cy: y, r: 150,
+      fill: teamColor, stroke: 'black', 'stroke-width': 15, opacity: '0.8',
+    }));
+
+    // アイコン (絵文字テキスト)
+    const iconText = createSVGElement('text', {
+      x, y,
+      'text-anchor': 'middle', 'dominant-baseline': 'central',
+      'font-size': 160, 'pointer-events': 'none', 'user-select': 'none',
+    });
+    iconText.textContent = ev.icon || '⚠️';
+    g.appendChild(iconText);
+
+    // イベント名ラベル
+    const nameText = createSVGElement('text', {
+      x, y: y + 220,
+      'text-anchor': 'middle', 'dominant-baseline': 'central',
+      'font-size': 130, 'font-weight': 'bold',
+      fill: 'white', stroke: 'black', 'stroke-width': 40,
+      'paint-order': 'stroke',
+      'pointer-events': 'none', 'user-select': 'none',
+    });
+    nameText.textContent = ev.label || 'イベント';
+    g.appendChild(nameText);
+
+    // ボット番号
+    if (ev.byBot != null) {
+      const botText = createSVGElement('text', {
+        x, y: y + 380,
+        'text-anchor': 'middle', 'dominant-baseline': 'central',
+        'font-size': 110,
+        fill: 'white', stroke: 'black', 'stroke-width': 30,
+        'paint-order': 'stroke',
+        'pointer-events': 'none', 'user-select': 'none',
+      });
+      botText.textContent = `#${ev.byBot}`;
+      g.appendChild(botText);
+    }
+
+    // 補足情報（速度・距離等）
+    if (ev.details) {
+      const detText = createSVGElement('text', {
+        x, y: y + (ev.byBot != null ? 510 : 380),
+        'text-anchor': 'middle', 'dominant-baseline': 'central',
+        'font-size': 100, 'font-weight': 'bold',
+        fill: '#FDD663', stroke: 'black', 'stroke-width': 25,
+        'paint-order': 'stroke',
+        'pointer-events': 'none', 'user-select': 'none',
+      });
+      detText.textContent = ev.details;
+      g.appendChild(detText);
+    }
+
+    overlayGroup.appendChild(g);
+  }
+}
+
 // SVGズーム/パン制御クラス
 class SvgZoomPan {
   constructor(svg) {
     this.svg = svg;
     const vb = svg.getAttribute('viewBox').split(' ').map(Number);
-    this._baseVB = [...vb];   // [x, y, w, h]
+    this._baseVB = [...vb];
     this._vb = [...vb];
     this._dragging = false;
     this._lastPos = null;

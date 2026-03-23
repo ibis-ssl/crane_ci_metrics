@@ -3,33 +3,39 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ibis-ssl SSL ゲームログプレイヤー</title>
-    <link
-      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
-      rel="stylesheet"
-      integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM"
-      crossorigin="anonymous"
-    />
-    <link href="./styles.css" rel="stylesheet" />
+    <title>SSL ゲームログプレイヤー</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+    <link href="./player-m3-tokens.css" rel="stylesheet" />
     <link href="./player.css" rel="stylesheet" />
   </head>
   <body>
-    <div class="container">
+    <div class="player-page">
       <!-- ヘッダー -->
       <header class="page-header">
-        <h1>SSL ゲームログプレイヤー</h1>
-        <p class="subtitle">.log.gz ファイルをドロップして試合全体を再生</p>
-        <nav class="page-nav">
-          <a href="./index.html" class="nav-link">← ビルド時間分析</a>
-          <a href="./match.html" class="nav-link" style="margin-left: 8px;">TIGERs対戦統計</a>
-          <a href="./goals.html" class="nav-link" style="margin-left: 8px;">ゴールシーン一覧</a>
-        </nav>
+        <div class="page-header-inner">
+          <div>
+            <h1 class="page-title">SSL ゲームログプレイヤー</h1>
+            <p class="page-subtitle">.log.gz ファイルをドロップして試合全体を再生</p>
+          </div>
+          <nav class="page-nav">
+            <a href="./index.html" class="nav-link">ビルド時間分析</a>
+            <a href="./match.html" class="nav-link">TIGERs対戦統計</a>
+            <a href="./goals.html" class="nav-link">ゴールシーン一覧</a>
+            <a href="./player.html" class="nav-link active">ログプレイヤー ▶</a>
+          </nav>
+        </div>
       </header>
 
       <!-- ファイルドロップエリア -->
       <div id="drop-zone" class="player-drop-zone">
         <div class="drop-zone-inner">
-          <div class="drop-zone-icon">📂</div>
+          <div class="drop-zone-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M3 7V17a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
+            </svg>
+          </div>
           <p class="drop-zone-text">.log.gz ファイルをここにドロップ</p>
           <p class="drop-zone-sub">または</p>
           <label class="drop-zone-btn">
@@ -41,9 +47,12 @@
 
       <!-- プレイヤー本体（ファイル読み込み後に表示） -->
       <div id="player-body" style="display:none">
-        <!-- プログレスバー（パース中） -->
-        <div id="parse-progress" class="chart-card" style="display:none">
-          <p class="parse-progress-label">ログをパース中...</p>
+        <!-- パース進捗 -->
+        <div id="parse-progress" class="parse-progress-card" style="display:none">
+          <div class="parse-progress-header">
+            <span class="parse-spinner"></span>
+            <span class="parse-progress-label">ログをパース中...</span>
+          </div>
           <div class="parse-progress-bar-wrap">
             <div id="parse-progress-bar" class="parse-progress-bar" style="width:0%"></div>
           </div>
@@ -52,33 +61,30 @@
         <!-- フィールド + 情報パネル -->
         <div class="player-main-layout">
           <!-- SVGフィールド -->
-          <div class="player-field-wrap chart-card">
-            <div id="field-container" class="player-field-container">
-              <!-- SVG は JS で挿入 -->
-            </div>
+          <div class="player-field-card">
+            <div id="field-container" class="player-field-container"></div>
             <p class="player-zoom-hint">ホイール: ズーム　ドラッグ: パン　ダブルクリック: リセット</p>
           </div>
 
           <!-- 情報パネル -->
           <div class="player-info-panel">
             <!-- スコアボード -->
-            <div class="chart-card player-scoreboard">
-              <h3 class="panel-title">スコア</h3>
+            <div class="info-card player-scoreboard">
               <div class="scoreboard-inner">
-                <div class="score-team ibis-team">
-                  <span class="score-team-name">ibis</span>
-                  <span id="score-ibis" class="score-value">0</span>
+                <div class="score-team yellow-team">
+                  <span id="team-name-yellow" class="score-team-name">Yellow</span>
+                  <span id="score-yellow" class="score-value">0</span>
                 </div>
                 <span class="score-sep">–</span>
-                <div class="score-team tigers-team">
-                  <span class="score-team-name">TIGERs</span>
-                  <span id="score-tigers" class="score-value">0</span>
+                <div class="score-team blue-team">
+                  <span id="team-name-blue" class="score-team-name">Blue</span>
+                  <span id="score-blue" class="score-value">0</span>
                 </div>
               </div>
             </div>
 
             <!-- レフェリー情報 -->
-            <div class="chart-card player-referee">
+            <div class="info-card player-referee">
               <h3 class="panel-title">レフェリー</h3>
               <table class="referee-table">
                 <tr>
@@ -93,52 +99,93 @@
             </div>
 
             <!-- ゴールログ -->
-            <div class="chart-card player-goal-log">
-              <h3 class="panel-title">ゴールログ</h3>
-              <div id="goal-log-list" class="goal-log-list">
+            <div class="info-card player-event-log">
+              <h3 class="panel-title">ゴール</h3>
+              <div id="goal-log-list" class="event-log-list">
+                <span class="no-data-text">なし</span>
+              </div>
+            </div>
+
+            <!-- ゲームイベントログ -->
+            <div class="info-card player-event-log">
+              <h3 class="panel-title">ゲームイベント</h3>
+              <div id="game-event-log-list" class="event-log-list">
                 <span class="no-data-text">なし</span>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- プレイヤーコントロール -->
-        <div class="chart-card player-controls-card">
-          <!-- タイムライン -->
-          <div class="player-timeline-wrap">
-            <div id="timeline-track" class="player-timeline-track">
-              <div id="timeline-progress" class="player-timeline-progress"></div>
-              <div id="timeline-thumb" class="player-timeline-thumb"></div>
-              <!-- ゴールマーカーは JS で挿入 -->
-            </div>
-            <div class="player-time-display">
-              <span id="time-current" class="time-current">0:00.0</span>
-              <span class="time-sep">/</span>
-              <span id="time-total">0:00.0</span>
-            </div>
+        <!-- リプレイバー -->
+        <div class="replay-bar" id="replay-bar">
+          <!-- ファイル情報 -->
+          <div class="replay-bar-label" role="status" aria-live="polite">
+            <span class="replay-badge">REPLAY</span>
+            <span class="replay-spinner" id="replay-spinner" style="display:none"></span>
+            <span class="replay-loading-text" id="replay-loading-text" style="display:none">読み込み中...</span>
+            <span id="replay-filename" class="replay-filename"></span>
           </div>
 
-          <!-- トランスポートボタン + 速度 -->
-          <div class="player-transport">
-            <button id="btn-step-back" class="transport-btn" title="1フレーム戻る (←)">⏮</button>
-            <button id="btn-play" class="transport-btn play-btn" title="再生/一時停止 (Space)">▶</button>
-            <button id="btn-step-fwd" class="transport-btn" title="1フレーム進む (→)">⏭</button>
-            <span class="transport-sep"></span>
-            <span class="speed-label">速度</span>
-            <div class="speed-btns" id="speed-btns">
-              <button class="speed-btn" data-speed="0.25">0.25x</button>
-              <button class="speed-btn" data-speed="0.5">0.5x</button>
-              <button class="speed-btn active" data-speed="1">1x</button>
-              <button class="speed-btn" data-speed="2">2x</button>
-              <button class="speed-btn" data-speed="4">4x</button>
-            </div>
-            <span class="transport-sep"></span>
-            <button id="btn-change-file" class="transport-btn small-btn" title="別のファイルを開く">📂 変更</button>
+          <!-- トランスポートコントロール -->
+          <div class="replay-transport" role="group" aria-label="再生コントロール">
+            <button id="btn-step-back" class="icon-btn skip-btn" title="1フレーム戻る (←)" disabled>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="19 20 9 12 19 4 19 20"/>
+                <line x1="5" y1="19" x2="5" y2="5"/>
+              </svg>
+            </button>
+            <button id="btn-play" class="icon-btn play-btn" title="再生/一時停止 (Space)" disabled>
+              <svg id="play-icon" viewBox="0 0 24 24" fill="currentColor">
+                <polygon points="5 3 19 12 5 21 5 3"/>
+              </svg>
+              <svg id="pause-icon" viewBox="0 0 24 24" fill="currentColor" style="display:none">
+                <rect x="6" y="4" width="4" height="16" rx="1"/>
+                <rect x="14" y="4" width="4" height="16" rx="1"/>
+              </svg>
+            </button>
+            <button id="btn-step-fwd" class="icon-btn skip-btn" title="1フレーム進む (→)" disabled>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="5 4 15 12 5 20 5 4"/>
+                <line x1="19" y1="4" x2="19" y2="20"/>
+              </svg>
+            </button>
           </div>
+
+          <!-- タイムライン -->
+          <div class="replay-timeline-section">
+            <span id="time-current" class="time-current">0:00.0</span>
+            <div id="timeline-track" class="replay-timeline-track">
+              <div id="timeline-progress" class="replay-timeline-progress"></div>
+              <div id="timeline-thumb" class="replay-timeline-thumb"></div>
+              <!-- マーカーはJSで挿入 -->
+            </div>
+            <span id="time-total" class="time-total">0:00.0</span>
+          </div>
+
+          <!-- 速度セレクタ -->
+          <div class="replay-rate-wrap">
+            <label class="rate-label" for="rate-select">Rate</label>
+            <select id="rate-select" class="rate-select" disabled>
+              <option value="0.25">0.25x</option>
+              <option value="0.5">0.5x</option>
+              <option value="1" selected>1x</option>
+              <option value="1.5">1.5x</option>
+              <option value="2">2x</option>
+              <option value="4">4x</option>
+            </select>
+          </div>
+
+          <!-- ファイル変更 -->
+          <button id="btn-change-file" class="change-file-btn" title="別のファイルを開く">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
+              <path d="M3 7V17a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
+            </svg>
+            変更
+          </button>
         </div>
 
         <!-- キーボードショートカット -->
-        <div class="player-shortcuts chart-card">
+        <div class="player-shortcuts">
           <span class="shortcut-title">ショートカット:</span>
           <span class="shortcut-item"><kbd>Space</kbd> 再生/一時停止</span>
           <span class="shortcut-item"><kbd>←</kbd><kbd>→</kbd> 1フレーム</span>
@@ -148,6 +195,9 @@
         </div>
       </div>
     </div>
+
+    <!-- トーストコンテナ -->
+    <div id="toast-container" class="toast-container" aria-live="polite"></div>
 
     <!-- CDN ライブラリ -->
     <script src="https://cdn.jsdelivr.net/npm/protobufjs@7/dist/protobuf.min.js"></script>
