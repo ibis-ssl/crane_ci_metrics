@@ -554,6 +554,160 @@
 .an-team-chip.blue   { background: var(--an-blue); }
 
 /* ============================================================
+   試合統計カード
+   ============================================================ */
+.an-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.an-stat-card {
+  background: var(--an-surface-ch);
+  border-radius: 12px;
+  padding: 16px 14px;
+  text-align: center;
+}
+
+.an-stat-value {
+  font-size: 1.75rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--an-on-surface);
+  margin: 0;
+  line-height: 1.1;
+}
+
+.an-stat-value.yellow { color: var(--an-yellow); }
+.an-stat-value.blue   { color: var(--an-blue); }
+.an-stat-value.ball   { color: var(--an-ball); }
+
+.an-stat-unit {
+  font-size: 0.6em;
+  font-weight: 400;
+  opacity: 0.8;
+}
+
+.an-stat-label {
+  font-size: 0.78rem;
+  color: var(--an-on-variant);
+  margin: 5px 0 0;
+  font-weight: 500;
+}
+
+/* チーム比較カード */
+.an-stats-team-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.an-team-stat-card {
+  background: var(--an-surface-ch);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.an-team-stat-card h3 {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--an-on-variant);
+  margin: 0 0 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.an-team-stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.an-team-stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.an-team-stat-item.right { text-align: right; }
+
+.an-team-val {
+  font-size: 1.4rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  font-family: 'JetBrains Mono', monospace;
+  line-height: 1.1;
+}
+
+.an-team-val.yellow { color: var(--an-yellow); }
+.an-team-val.blue   { color: var(--an-blue); }
+
+.an-team-val-unit {
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: var(--an-on-variant);
+  margin-left: 2px;
+}
+
+.an-team-sub {
+  font-size: 0.72rem;
+  color: var(--an-on-variant);
+}
+
+/* 陣地バー */
+.an-territory-bar {
+  display: flex;
+  height: 28px;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.an-territory-bar > div {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #1a1a1a;
+  transition: width 0.3s;
+}
+
+.an-territory-yellow { background: var(--an-yellow); }
+.an-territory-blue   { background: var(--an-blue); }
+
+.an-territory-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 5px;
+}
+
+/* ロボット個別テーブル */
+.an-stats-robot-tables {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.an-robot-table-title {
+  font-size: 0.88rem;
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+
+.an-card-subtitle {
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--an-on-variant);
+}
+
+.an-tabular { font-variant-numeric: tabular-nums; }
+
+/* ============================================================
    レスポンシブ
    ============================================================ */
 @media (max-width: 700px) {

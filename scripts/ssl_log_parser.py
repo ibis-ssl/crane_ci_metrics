@@ -16,6 +16,7 @@ SSL log format:
 import bisect
 import gzip
 import io
+import math
 import struct
 import sys
 import os
@@ -349,6 +350,132 @@ _FIELD_Y_MIN = -4500
 _HEATMAP_BINS_X = 120  # 12000 / 100
 _HEATMAP_BINS_Y = 90   # 9000 / 100
 REPLAY_FPS = 3
+
+# 統計計算用定数
+_STATS_MIN_DT_NS = int(5e6)       # 5ms未満のΔtはスキップ（ノイズ排除）
+_STATS_MAX_DT_NS = int(500e6)     # 500ms超のΔtはスキップ（フレーム欠落）
+_KICK_DETECT_THRESHOLD = 1.5      # m/s の速度増加でキック検出
+_SPRINT_THRESHOLD = 2.0           # m/s 以上でスプリント判定
+_SPRINT_COOLDOWN_NS = int(500e6)  # 同一ロボットのスプリント再検出間隔
+
+
+def _compute_match_stats(frames: list[dict]) -> dict:
+    """ボール・ロボットの速度・距離・キック・スプリントを1パスで計算する。"""
+    ball_max_speed = 0.0
+    ball_speed_sum = 0.0
+    ball_speed_count = 0
+    ball_total_dist_mm = 0.0
+    kick_count = 0
+    ball_pos_count = 0
+    ball_neg_count = 0
+    prev_ball_speed = 0.0
+
+    # {(team, id): {"dist_mm": float, "max_spd": float, "sprint_count": int, "last_sprint_ns": int}}
+    robot_stats: dict[tuple[str, int], dict] = {}
+
+    prev_frame: dict | None = None
+    prev_yellow_map: dict[int, dict] = {}
+    prev_blue_map: dict[int, dict] = {}
+
+    for frame in frames:
+        ball = frame.get("ball")
+        t_ns = frame["t_ns"]
+
+        # ボール陣地カウント
+        if ball:
+            if ball["x"] > 0:
+                ball_pos_count += 1
+            else:
+                ball_neg_count += 1
+
+        if prev_frame is not None:
+            dt_ns = t_ns - prev_frame["t_ns"]
+            if _STATS_MIN_DT_NS <= dt_ns <= _STATS_MAX_DT_NS:
+                dt_sec = dt_ns / 1e9
+
+                # ボール速度・距離
+                prev_ball = prev_frame.get("ball")
+                if ball and prev_ball:
+                    dx = ball["x"] - prev_ball["x"]
+                    dy = ball["y"] - prev_ball["y"]
+                    dist_mm = math.hypot(dx, dy)
+                    speed_ms = (dist_mm / 1000.0) / dt_sec
+                    if speed_ms > ball_max_speed:
+                        ball_max_speed = speed_ms
+                    ball_speed_sum += speed_ms
+                    ball_speed_count += 1
+                    ball_total_dist_mm += dist_mm
+                    if speed_ms - prev_ball_speed >= _KICK_DETECT_THRESHOLD:
+                        kick_count += 1
+                    prev_ball_speed = speed_ms
+                else:
+                    prev_ball_speed = 0.0
+
+                # ロボット速度・距離
+                for team, cur_robots, prev_map in (
+                    ("yellow", frame.get("robots_yellow", []), prev_yellow_map),
+                    ("blue",   frame.get("robots_blue",   []), prev_blue_map),
+                ):
+                    for r in cur_robots:
+                        rid = r["id"]
+                        key = (team, rid)
+                        if key not in robot_stats:
+                            robot_stats[key] = {"dist_mm": 0.0, "max_spd": 0.0,
+                                                "sprint_count": 0, "last_sprint_ns": -_SPRINT_COOLDOWN_NS}
+                        pr = prev_map.get(rid)
+                        if pr is not None:
+                            rdx = r["x"] - pr["x"]
+                            rdy = r["y"] - pr["y"]
+                            rdist = math.hypot(rdx, rdy)
+                            rspd = (rdist / 1000.0) / dt_sec
+                            rs = robot_stats[key]
+                            rs["dist_mm"] += rdist
+                            if rspd > rs["max_spd"]:
+                                rs["max_spd"] = rspd
+                            if rspd >= _SPRINT_THRESHOLD and (t_ns - rs["last_sprint_ns"]) >= _SPRINT_COOLDOWN_NS:
+                                rs["sprint_count"] += 1
+                                rs["last_sprint_ns"] = t_ns
+
+        prev_frame = frame
+        prev_yellow_map = {r["id"]: r for r in frame.get("robots_yellow", [])}
+        prev_blue_map   = {r["id"]: r for r in frame.get("robots_blue",   [])}
+
+    # 集計
+    ball_total = ball_pos_count + ball_neg_count
+    ball_stat = {
+        "max_speed_ms":    round(ball_max_speed, 2),
+        "avg_speed_ms":    round(ball_speed_sum / ball_speed_count if ball_speed_count > 0 else 0.0, 2),
+        "total_distance_m": round(ball_total_dist_mm / 1000.0, 1),
+        "kick_count": kick_count,
+        "territory": {
+            "positive_pct": round(ball_pos_count / ball_total * 100, 1) if ball_total > 0 else 50.0,
+            "negative_pct": round(ball_neg_count / ball_total * 100, 1) if ball_total > 0 else 50.0,
+        },
+    }
+
+    def _team_stats(team: str) -> dict:
+        items = [(rid, s) for (t, rid), s in robot_stats.items() if t == team]
+        if not items:
+            return {"total_distance_m": 0.0, "fastest": {"id": -1, "max_speed_ms": 0.0},
+                    "total_sprint_count": 0, "robots": []}
+        fastest_id, fastest_s = max(items, key=lambda x: x[1]["max_spd"])
+        return {
+            "total_distance_m": round(sum(s["dist_mm"] for _, s in items) / 1000.0, 1),
+            "fastest": {"id": fastest_id, "max_speed_ms": round(fastest_s["max_spd"], 2)},
+            "total_sprint_count": sum(s["sprint_count"] for _, s in items),
+            "robots": sorted([
+                {"id": rid, "max_speed_ms": round(s["max_spd"], 2),
+                 "total_distance_m": round(s["dist_mm"] / 1000.0, 1),
+                 "sprint_count": s["sprint_count"]}
+                for rid, s in items
+            ], key=lambda x: x["id"]),
+        }
+
+    return {
+        "sprint_threshold_ms": _SPRINT_THRESHOLD,
+        "ball": ball_stat,
+        "robots": {"yellow": _team_stats("yellow"), "blue": _team_stats("blue")},
+    }
 
 
 def _compute_all_heatmaps(
@@ -692,6 +819,7 @@ def extract_full_analysis(log_gz_bytes: bytes, filename: str = "") -> dict:
     match_id = base.replace(" ", "_").replace("/", "_").replace("\\", "_")
 
     ball_heatmap, yellow_heatmap, blue_heatmap = _compute_all_heatmaps(position_frames)
+    match_stats = _compute_match_stats(position_frames)
 
     return {
         "meta": {
@@ -701,6 +829,7 @@ def extract_full_analysis(log_gz_bytes: bytes, filename: str = "") -> dict:
             "final_score": final_score,
             "duration_sec": duration_sec,
         },
+        "match_stats": match_stats,
         "replay_frames": _downsample_replay_frames(position_frames, start_ns, REPLAY_FPS),
         "ball_heatmap": ball_heatmap,
         "robot_heatmaps": {"yellow": yellow_heatmap, "blue": blue_heatmap},

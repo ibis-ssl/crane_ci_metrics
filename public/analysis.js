@@ -22,6 +22,119 @@ function formatSec(sec) {
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
 // ============================================================
+// 試合統計レンダリング
+// ============================================================
+function renderMatchStats(stats, yName, bName) {
+  const ballGrid = document.getElementById('stats-ball-grid');
+  const teamGrid = document.getElementById('stats-team-grid');
+  const robotTables = document.getElementById('stats-robot-tables');
+  if (!ballGrid || !teamGrid || !robotTables) return;
+
+  const b = stats.ball;
+  const sprintThreshold = stats.sprint_threshold_ms ?? 2.0;
+
+  for (const { value, unit, label } of [
+    { value: b.max_speed_ms.toFixed(1), unit: 'm/s', label: 'ボール最高速度' },
+    { value: b.avg_speed_ms.toFixed(1), unit: 'm/s', label: 'ボール平均速度' },
+    { value: b.total_distance_m.toFixed(0), unit: 'm', label: 'ボール総移動距離' },
+    { value: String(b.kick_count), unit: '回', label: 'キック検出数' },
+  ]) {
+    const div = document.createElement('div');
+    div.className = 'an-stat-card';
+    div.innerHTML = `
+      <p class="an-stat-value ball">${value}<span class="an-stat-unit"> ${unit}</span></p>
+      <p class="an-stat-label">${label}</p>
+    `;
+    ballGrid.appendChild(div);
+  }
+
+  const ys = stats.robots.yellow;
+  const bs = stats.robots.blue;
+
+  function teamCard({ title, subtitle, yellow: y, blue: bl }) {
+    const div = document.createElement('div');
+    div.className = 'an-team-stat-card';
+    div.innerHTML = `
+      <h3>${title}${subtitle ? ` <span class="an-card-subtitle">${subtitle}</span>` : ''}</h3>
+      <div class="an-team-stat-row">
+        <div class="an-team-stat-item">
+          <span class="an-team-val yellow">${y.val}<span class="an-team-val-unit">${y.unit}</span></span>
+          <span class="an-team-sub">${y.label}</span>
+        </div>
+        <div class="an-team-stat-item right">
+          <span class="an-team-val blue">${bl.val}<span class="an-team-val-unit">${bl.unit}</span></span>
+          <span class="an-team-sub">${bl.label}</span>
+        </div>
+      </div>
+    `;
+    return div;
+  }
+
+  teamGrid.appendChild(teamCard({
+    title: 'チーム総走行距離',
+    yellow: { val: ys.total_distance_m.toFixed(0), unit: ' m', label: yName },
+    blue:   { val: bs.total_distance_m.toFixed(0), unit: ' m', label: bName },
+  }));
+
+  teamGrid.appendChild(teamCard({
+    title: 'チーム最速ロボット',
+    yellow: { val: ys.fastest.max_speed_ms.toFixed(1), unit: ' m/s', label: `${yName} #${ys.fastest.id}` },
+    blue:   { val: bs.fastest.max_speed_ms.toFixed(1), unit: ' m/s', label: `${bName} #${bs.fastest.id}` },
+  }));
+
+  teamGrid.appendChild(teamCard({
+    title: 'スプリント回数',
+    subtitle: `(${sprintThreshold.toFixed(1)} m/s 超)`,
+    yellow: { val: ys.total_sprint_count, unit: '', label: yName },
+    blue:   { val: bs.total_sprint_count, unit: '', label: bName },
+  }));
+
+  const terr = b.territory;
+  const terrDiv = document.createElement('div');
+  terrDiv.className = 'an-team-stat-card';
+  terrDiv.innerHTML = `
+    <h3>ボール陣地分析 <span class="an-card-subtitle">(x座標の正負で判定)</span></h3>
+    <div class="an-territory-bar">
+      <div class="an-territory-yellow" style="width:${terr.positive_pct}%">${terr.positive_pct >= 15 ? terr.positive_pct + '%' : ''}</div>
+      <div class="an-territory-blue"   style="width:${terr.negative_pct}%">${terr.negative_pct >= 15 ? terr.negative_pct + '%' : ''}</div>
+    </div>
+    <div class="an-territory-labels">
+      <span class="an-team-sub">${yName} 陣地側 (x&gt;0)  ${terr.positive_pct}%</span>
+      <span class="an-team-sub">${terr.negative_pct}%  ${bName} 陣地側 (x&le;0)</span>
+    </div>
+  `;
+  teamGrid.appendChild(terrDiv);
+
+  for (const [teamStats, teamName, cls] of [
+    [ys, yName, 'yellow'],
+    [bs, bName, 'blue'],
+  ]) {
+    if (teamStats.robots.length === 0) continue;
+    const wrap = document.createElement('div');
+    const rows = teamStats.robots.map(r => `
+      <tr>
+        <td><strong>#${r.id}</strong></td>
+        <td class="an-tabular">${r.max_speed_ms.toFixed(1)}</td>
+        <td class="an-tabular">${r.total_distance_m.toFixed(1)}</td>
+        <td>${r.sprint_count}</td>
+      </tr>
+    `).join('');
+    wrap.innerHTML = `
+      <p class="an-robot-table-title" style="color:var(--an-${cls})">${teamName} ロボット別統計</p>
+      <div class="an-table-wrap">
+        <table class="an-table">
+          <thead><tr>
+            <th>ID</th><th>最高速度 (m/s)</th><th>走行距離 (m)</th><th>スプリント</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    `;
+    robotTables.appendChild(wrap);
+  }
+}
+
+// ============================================================
 // FullReplayPlayer — JSON フレームを再生する
 // ============================================================
 class FullReplayPlayer {
@@ -166,7 +279,7 @@ function eventCategory(typeVal) {
   document.getElementById('loading-overlay').style.display = 'none';
   document.getElementById('main-content').style.display = 'block';
 
-  const { meta, replay_frames, ball_heatmap, robot_heatmaps, goal_scenes,
+  const { meta, match_stats, replay_frames, ball_heatmap, robot_heatmaps, goal_scenes,
           events, possession, score_timeline, referee_commands } = data;
 
   // ============================================================
@@ -203,7 +316,12 @@ function eventCategory(typeVal) {
   }
 
   // ============================================================
-  // ② フルリプレイ
+  // ② 試合統計
+  // ============================================================
+  if (match_stats) renderMatchStats(match_stats, yName, bName);
+
+  // ============================================================
+  // ③ フルリプレイ
   // ============================================================
   const { svg, robotElements, ballEl, eventOverlay } = buildFieldSVG();
   document.getElementById('replay-field-container').appendChild(svg);
@@ -300,7 +418,7 @@ function eventCategory(typeVal) {
   });
 
   // ============================================================
-  // ③ スコアタイムライン (ApexCharts)
+  // ④ スコアタイムライン (ApexCharts)
   // ============================================================
   if (score_timeline && score_timeline.length > 0) {
     const categories = score_timeline.map(s => formatSec(s.t_sec));
@@ -323,7 +441,7 @@ function eventCategory(typeVal) {
   }
 
   // ============================================================
-  // ④ ポゼッション (ApexCharts)
+  // ⑤ ポゼッション (ApexCharts)
   // ============================================================
   if (possession && possession.timestamps && possession.timestamps.length > 0) {
     const yellowRatio = possession.yellow_ratio.map(r => Math.round(r * 100));
@@ -352,7 +470,7 @@ function eventCategory(typeVal) {
   }
 
   // ============================================================
-  // ⑤ ヒートマップ
+  // ⑥ ヒートマップ
   // ============================================================
   function initCanvas(id) {
     const canvas = document.getElementById(id);
@@ -392,7 +510,7 @@ function eventCategory(typeVal) {
   }
 
   // ============================================================
-  // ⑥ ゴールシーン集
+  // ⑦ ゴールシーン集
   // ============================================================
   function renderGoalScenes() {
     const container = document.getElementById('goal-scenes-container');
@@ -417,7 +535,7 @@ function eventCategory(typeVal) {
   }
 
   // ============================================================
-  // ⑦ イベントテーブル
+  // ⑧ イベントテーブル
   // ============================================================
   const eventsData = events || [];
   let currentEventFilter = 'all';
@@ -468,7 +586,7 @@ function eventCategory(typeVal) {
   });
 
   // ============================================================
-  // ⑧ レフェリーコマンドテーブル
+  // ⑨ レフェリーコマンドテーブル
   // ============================================================
   const cmdTbody = document.getElementById('commands-tbody');
   if (cmdTbody && referee_commands) {
