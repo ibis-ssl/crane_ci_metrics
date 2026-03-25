@@ -162,6 +162,12 @@
             <span id="time-total" class="time-total">0:00.0</span>
           </div>
 
+          <!-- データソース切り替え -->
+          <div id="data-source-wrap" class="data-source-wrap" style="display:none">
+            <button class="data-source-btn active" data-source="tracker" title="Trackerデータを使用">Tracker</button>
+            <button class="data-source-btn" data-source="vision" title="Visionデータを使用">Vision</button>
+          </div>
+
           <!-- 速度セレクタ -->
           <div class="replay-rate-wrap">
             <label class="rate-label" for="rate-select">Rate</label>
@@ -192,6 +198,7 @@
           <span class="shortcut-item"><kbd>Shift+←</kbd><kbd>Shift+→</kbd> 1秒</span>
           <span class="shortcut-item"><kbd>[</kbd><kbd>]</kbd> 速度変更</span>
           <span class="shortcut-item"><kbd>Home</kbd><kbd>End</kbd> 先頭/末尾</span>
+          <span class="shortcut-item"><kbd>V</kbd> Tracker/Vision切替</span>
         </div>
       </div>
     </div>

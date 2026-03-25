@@ -38,9 +38,9 @@ class SSLLogParser {
     const data = await this._decompress(gzipBuffer);
     if (onProgress) onProgress(0.05);
 
-    const frames = [];
+    const visionFrames = [];
+    const trackerFrames = [];
     const refereeSnapshots = [];
-    let hasTracker = false;
     let msgCount = 0;
 
     const totalBytes = data.byteLength;
@@ -53,24 +53,18 @@ class SSLLogParser {
           refereeSnapshots.push({ timestampNs, ref });
         } catch (_) {}
 
-      } else if ((msgType === MSG_TYPE_VISION_2010 || msgType === MSG_TYPE_VISION_2014) && !hasTracker) {
+      } else if (msgType === MSG_TYPE_VISION_2010 || msgType === MSG_TYPE_VISION_2014) {
         try {
           const wrapper = this._SSL_WrapperPacket.decode(raw);
           const frame = this._visionToFrame(timestampNs, wrapper);
-          if (frame) frames.push(frame);
+          if (frame) visionFrames.push(frame);
         } catch (_) {}
 
       } else if (msgType === MSG_TYPE_TRACKER) {
         try {
           const wrapper = this._TrackerWrapperPacket.decode(raw);
           const frame = this._trackerToFrame(timestampNs, wrapper);
-          if (frame) {
-            if (!hasTracker) {
-              hasTracker = true;
-              frames.length = 0;
-            }
-            frames.push(frame);
-          }
+          if (frame) trackerFrames.push(frame);
         } catch (_) {}
       }
 
@@ -86,12 +80,20 @@ class SSLLogParser {
     const gameEvents  = this._extractGameEvents(refereeSnapshots);
     const teamNames   = this._extractTeamNames(refereeSnapshots);
 
+    const hasTracker = trackerFrames.length > 0;
+    const hasVision  = visionFrames.length > 0;
+    const frames = hasTracker ? trackerFrames : visionFrames;
+
     const durationNs = frames.length > 1
       ? frames[frames.length - 1].timestampNs - frames[0].timestampNs
       : BigInt(0);
 
     if (onProgress) onProgress(1.0);
-    return { frames, refereeSnapshots, goalMarkers, gameEvents, teamNames, durationNs };
+    return {
+      frames, visionFrames, trackerFrames,
+      hasTracker, hasVision,
+      refereeSnapshots, goalMarkers, gameEvents, teamNames, durationNs,
+    };
   }
 
   // --- 内部メソッド ---

@@ -427,7 +427,7 @@
   max-width: 1400px;
   margin: 0 auto;
   display: grid;
-  grid-template-columns: auto auto 1fr auto auto;
+  grid-template-columns: auto auto 1fr auto auto auto;
   align-items: center;
   gap: 12px;
   padding: 10px 20px;
@@ -440,9 +440,43 @@
 }
 
 .replay-bar.loading .replay-transport,
-.replay-bar.loading .replay-rate-wrap {
+.replay-bar.loading .replay-rate-wrap,
+.replay-bar.loading .data-source-wrap {
   opacity: 0.4;
   pointer-events: none;
+}
+
+/* データソース切り替え */
+.data-source-wrap {
+  display: inline-flex;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-full);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.data-source-btn {
+  padding: 4px 12px;
+  background: var(--md-sys-color-surface-container);
+  border: none;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 150ms, color 150ms;
+}
+
+.data-source-btn:not(:last-child) {
+  border-right: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.data-source-btn:hover:not(.active) {
+  background: var(--md-sys-color-surface-container-high);
+}
+
+.data-source-btn.active {
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
 }
 
 /* ファイル情報 */

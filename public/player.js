@@ -193,6 +193,9 @@ class ToastManager {
 class LogPlayer {
   constructor() {
     this.frames = [];
+    this.visionFrames = [];
+    this.trackerFrames = [];
+    this.dataSource = 'tracker';
     this.refereeSnapshots = [];
     this.goalMarkers = [];
     this.gameEvents = [];
@@ -227,6 +230,9 @@ class LogPlayer {
     this._setupDropZone();
     this._setupKeyboard();
   }
+
+  get hasTracker() { return this.trackerFrames.length > 0; }
+  get hasVision()  { return this.visionFrames.length > 0; }
 
   // --- UI 構築 ---
 
@@ -263,6 +269,13 @@ class LogPlayer {
     this._refCommand  = document.getElementById('ref-command');
     this._goalLog     = document.getElementById('goal-log-list');
     this._gameEventLog = document.getElementById('game-event-log-list');
+
+    // データソース切り替えボタン
+    this._dataSourceWrap = document.getElementById('data-source-wrap');
+    this._dataSourceBtns = document.querySelectorAll('.data-source-btn');
+    this._dataSourceBtns.forEach(btn => {
+      btn.addEventListener('click', () => this.switchDataSource(btn.dataset.source));
+    });
 
     // ボタンイベント
     this._btnPlay.addEventListener('click', () => this.togglePlay());
@@ -330,6 +343,43 @@ class LogPlayer {
     }
   }
 
+  // --- データソース切り替え ---
+
+  switchDataSource(source) {
+    if (source === this.dataSource) return;
+    if (source === 'tracker' && this.trackerFrames.length === 0) return;
+    if (source === 'vision'  && this.visionFrames.length === 0) return;
+
+    const currentNs = this.frames.length > 0
+      ? this.frames[this.currentFrameIdx].timestampNs
+      : this.startNs;
+    const wasPlaying = this.playing;
+    if (wasPlaying) this.pause();
+
+    this.dataSource = source;
+    this.frames = source === 'tracker' ? this.trackerFrames : this.visionFrames;
+    this.startNs = this.frames.length > 0 ? this.frames[0].timestampNs : BigInt(0);
+    this.durationNs = this.frames.length > 1
+      ? this.frames[this.frames.length - 1].timestampNs - this.frames[0].timestampNs
+      : BigInt(0);
+
+    this._timeTotal.textContent = formatTimeNs(this.durationNs);
+    this._buildGoalMarkers();
+    this._buildEventMarkers();
+
+    this._shownEventIds.clear();
+    this._updateDataSourceUI();
+
+    this._seekToFrameIdx(findFrameIndex(this.frames, currentNs));
+    if (wasPlaying) this.play();
+  }
+
+  _updateDataSourceUI() {
+    this._dataSourceBtns.forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.source === this.dataSource);
+    });
+  }
+
   _setupDropZone() {
     const zone = this._dropZone;
     const input = document.getElementById('file-input');
@@ -383,6 +433,10 @@ class LogPlayer {
           e.preventDefault();
           this._seekToFrameIdx(this.frames.length - 1);
           break;
+        case 'v':
+        case 'V':
+          this.switchDataSource(this.dataSource === 'tracker' ? 'vision' : 'tracker');
+          break;
       }
     });
   }
@@ -408,6 +462,9 @@ class LogPlayer {
         this._parseBar.style.width = `${Math.round(ratio * 100)}%`;
       });
 
+      this.visionFrames = result.visionFrames;
+      this.trackerFrames = result.trackerFrames;
+      this.dataSource = this.hasTracker ? 'tracker' : 'vision';
       this.frames = result.frames;
       this.refereeSnapshots = result.refereeSnapshots;
       this.goalMarkers = result.goalMarkers;
@@ -459,6 +516,12 @@ class LogPlayer {
     this._teamNameYellow.textContent = this.teamNames.yellow;
     this._teamNameBlue.textContent   = this.teamNames.blue;
     if (this._replayFilename) this._replayFilename.textContent = fileName;
+
+    // データソース切り替えUI（両方存在する場合のみ表示）
+    if (this._dataSourceWrap) {
+      this._dataSourceWrap.style.display = (this.hasTracker && this.hasVision) ? '' : 'none';
+      this._updateDataSourceUI();
+    }
 
     // ゴールマーカー・ログ構築
     this._buildGoalMarkers();
