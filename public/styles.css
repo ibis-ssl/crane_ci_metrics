@@ -232,6 +232,11 @@ body {
   color: white;
 }
 
+.page-nav .nav-link.active {
+  background-color: var(--accent-blue);
+  color: white;
+}
+
 /* ============================================
    テーブル (Tabulator用)
    ============================================ */
@@ -261,4 +266,88 @@ body {
 
 .tabulator-cell {
   color: var(--text-primary);
+}
+
+/* ============================================
+   ポータルページ
+   ============================================ */
+.portal-section-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin: 0 0 calc(var(--spacing-unit) * 2) 0;
+  padding-bottom: calc(var(--spacing-unit));
+  border-bottom: 2px solid var(--border-color);
+}
+
+.portal-section {
+  margin-bottom: calc(var(--spacing-unit) * 5);
+}
+
+.portal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: calc(var(--spacing-unit) * 3);
+}
+
+.portal-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: calc(var(--spacing-unit) * 3);
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  align-items: center;
+  gap: calc(var(--spacing-unit) * 2);
+  transition: all 0.2s ease;
+}
+
+.portal-card:hover {
+  border-color: var(--accent-blue);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+  color: inherit;
+  text-decoration: none;
+}
+
+.portal-card-icon {
+  font-size: 2rem;
+  color: var(--accent-blue);
+  flex-shrink: 0;
+  width: 48px;
+  text-align: center;
+  line-height: 1;
+}
+
+.portal-card-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.portal-card-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0 0 4px 0;
+  color: var(--text-primary);
+}
+
+.portal-card-desc {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.portal-card-arrow {
+  font-size: 1.25rem;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  transition: transform 0.2s, color 0.2s;
+}
+
+.portal-card:hover .portal-card-arrow {
+  transform: translateX(4px);
+  color: var(--accent-blue);
 }
