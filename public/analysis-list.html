@@ -46,25 +46,54 @@
         word-break: break-all;
       }
 
-      .match-score-row {
+      /* スコアボード: チーム名とスコアを同行に3カラムで並べる */
+      .match-scoreboard {
         display: flex;
         align-items: center;
-        gap: 12px;
+        gap: 8px;
+      }
+
+      .match-team-col {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex: 1;
+        min-width: 0;
+      }
+
+      .match-team-col--yellow { flex-direction: row; }
+      .match-team-col--blue   { flex-direction: row-reverse; }
+
+      .match-team-name {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--text-secondary);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        transition: color 0.15s;
+      }
+
+      .match-team-col.winner .match-team-name {
+        color: var(--text-primary);
+        font-weight: 700;
+      }
+
+      .match-score-num {
         font-size: 2rem;
         font-weight: 800;
         font-variant-numeric: tabular-nums;
+        flex-shrink: 0;
       }
 
       .match-score-yellow { color: #E5C000; }
       .match-score-blue   { color: #3B7FE0; }
-      .match-score-sep    { color: var(--text-secondary); font-weight: 400; }
 
-      .match-team-row {
-        display: flex;
-        justify-content: space-between;
-        font-size: 0.88rem;
-        font-weight: 600;
+      .match-score-sep {
         color: var(--text-secondary);
+        font-size: 1.4rem;
+        font-weight: 400;
+        flex-shrink: 0;
       }
 
       .match-meta-row {

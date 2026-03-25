@@ -23,6 +23,9 @@ function buildMatchCard(meta) {
   const score = final_score || { yellow: 0, blue: 0 };
   const result = resultBadge(score);
 
+  const yWinner = result.cls === 'yellow-win';
+  const bWinner = result.cls === 'blue-win';
+
   const dlHtml = gdrive_url
     ? `<a href="${gdrive_url}" class="match-download-link" target="_blank" rel="noopener" title="ログファイルをダウンロード (Google Drive)" onclick="event.stopPropagation()">&#x1F4E5;</a>`
     : '';
@@ -31,20 +34,22 @@ function buildMatchCard(meta) {
   a.href = `./analysis.html?id=${encodeURIComponent(id)}`;
   a.className = 'match-card';
   a.innerHTML = `
-    <div class="match-card-filename">${filename || id}${dlHtml}</div>
-    <div class="match-score-row">
-      <span class="match-score-yellow">${score.yellow}</span>
-      <span class="match-score-sep">–</span>
-      <span class="match-score-blue">${score.blue}</span>
-    </div>
-    <div class="match-team-row">
-      <span>${yName}</span>
-      <span>${bName}</span>
+    <div class="match-scoreboard">
+      <div class="match-team-col match-team-col--yellow ${yWinner ? 'winner' : ''}">
+        <span class="match-team-name">${yName}</span>
+        <span class="match-score-num match-score-yellow">${score.yellow}</span>
+      </div>
+      <div class="match-score-sep">–</div>
+      <div class="match-team-col match-team-col--blue ${bWinner ? 'winner' : ''}">
+        <span class="match-score-num match-score-blue">${score.blue}</span>
+        <span class="match-team-name">${bName}</span>
+      </div>
     </div>
     <div class="match-meta-row">
       <span class="match-result-badge ${result.cls}">${result.text}</span>
       <span class="match-duration-badge">⏱ ${formatSec(duration_sec)}</span>
     </div>
+    <div class="match-card-filename">${filename || id}${dlHtml}</div>
   `;
   return a;
 }
