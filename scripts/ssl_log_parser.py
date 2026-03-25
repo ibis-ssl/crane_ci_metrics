@@ -234,3 +234,440 @@ def extract_goal_scenes(log_gz_bytes: bytes) -> list[dict]:
         prev_blue_score = blue_score
 
     return scenes
+
+
+# ============================================================
+# フル試合分析 (extract_full_analysis)
+# ============================================================
+
+GAME_EVENT_LABELS: dict[int, str] = {
+    6: 'ボールアウト(タッチ)',
+    7: 'ボールアウト(ゴール)',
+    11: 'エイムレスキック',
+    13: 'キーパー保持',
+    14: 'ダブルタッチ',
+    17: 'オーバードリブル',
+    19: 'エリア接近',
+    24: 'プッシング',
+    26: 'ホールディング',
+    27: '転倒',
+    31: 'マルチプルDF',
+    43: '境界線横断',
+    51: '部品脱落',
+    15: 'エリア内タッチ',
+    18: 'ボール速度超過',
+    21: '衝突(引分)',
+    22: '衝突',
+    20: '配置妨害',
+    28: 'STOP中速度超過',
+    29: 'ボール接近',
+    52: '交代回数超過',
+    39: 'ゴール(確認中)',
+    8:  'ゴール',
+    44: '無効ゴール',
+    45: 'PK失敗',
+    2:  '試合の停滞',
+    38: 'ロボット数超過',
+    3:  '配置失敗',
+    5:  '配置成功',
+}
+
+STAGE_NAMES: dict[int, str] = {
+    0:  'プレゲーム',
+    1:  '前半',
+    2:  'ハーフタイム',
+    3:  '後半プレゲーム',
+    4:  '後半',
+    5:  'オーバータイム休憩',
+    6:  'OT前半プレゲーム',
+    7:  'OT前半',
+    8:  'OTハーフタイム',
+    9:  'OT後半プレゲーム',
+    10: 'OT後半',
+    11: 'PK戦休憩',
+    12: 'PK戦',
+    13: '試合終了',
+}
+
+COMMAND_NAMES: dict[int, str] = {
+    0:  'HALT',
+    1:  '停止 (STOP)',
+    2:  '通常プレー開始',
+    3:  'フォースプレー開始',
+    4:  'キックオフ準備 (Yellow)',
+    5:  'キックオフ準備 (Blue)',
+    6:  'ペナルティキック準備 (Yellow)',
+    7:  'ペナルティキック準備 (Blue)',
+    8:  'フリーキック (Yellow)',
+    9:  'フリーキック (Blue)',
+    10: 'インダイレクトFK (Yellow)',
+    11: 'インダイレクトFK (Blue)',
+    12: 'タイムアウト (Yellow)',
+    13: 'タイムアウト (Blue)',
+    14: 'ゴール (Yellow)',
+    15: 'ボールプレースメント (Yellow)',
+    16: 'ボールプレースメント (Blue)',
+}
+
+_HEATMAP_BIN_SIZE_MM = 100
+_FIELD_X_MIN = -6000
+_FIELD_Y_MIN = -4500
+_HEATMAP_BINS_X = 120  # 12000 / 100
+_HEATMAP_BINS_Y = 90   # 9000 / 100
+REPLAY_FPS = 3
+
+
+def _compute_all_heatmaps(
+    frames: list[dict],
+) -> tuple[list[list[int]], list[list[int]], list[list[int]]]:
+    """ボール・黄ロボット・青ロボットのヒートマップを1パスで計算する。
+
+    Returns: (ball_bins, yellow_bins, blue_bins)
+        各要素: [[x_bin, y_bin, count], ...] 非ゼロのみ
+    """
+    ball_grid:   dict[tuple[int, int], int] = {}
+    yellow_grid: dict[tuple[int, int], int] = {}
+    blue_grid:   dict[tuple[int, int], int] = {}
+
+    def _add(grid: dict, x: float, y: float) -> None:
+        bx = max(0, min(_HEATMAP_BINS_X - 1, int((x - _FIELD_X_MIN) / _HEATMAP_BIN_SIZE_MM)))
+        by = max(0, min(_HEATMAP_BINS_Y - 1, int((y - _FIELD_Y_MIN) / _HEATMAP_BIN_SIZE_MM)))
+        grid[(bx, by)] = grid.get((bx, by), 0) + 1
+
+    for frame in frames:
+        ball = frame.get('ball')
+        if ball:
+            _add(ball_grid, ball.get('x', 0), ball.get('y', 0))
+        for r in frame.get('robots_yellow', []):
+            _add(yellow_grid, r.get('x', 0), r.get('y', 0))
+        for r in frame.get('robots_blue', []):
+            _add(blue_grid, r.get('x', 0), r.get('y', 0))
+
+    def _to_list(grid: dict) -> list[list[int]]:
+        return [[bx, by, cnt] for (bx, by), cnt in grid.items()]
+
+    return _to_list(ball_grid), _to_list(yellow_grid), _to_list(blue_grid)
+
+
+def _compute_possession(frames: list[dict], interval_sec: float = 5.0) -> dict:
+    """ポゼッション分析: interval_sec 秒ごとに Yellow チームの占有率を返す。"""
+    if not frames:
+        return {"timestamps": [], "yellow_ratio": []}
+
+    start_ns = frames[0]["t_ns"]
+    end_ns = frames[-1]["t_ns"]
+    interval_ns = int(interval_sec * 1e9)
+
+    timestamps: list[float] = []
+    yellow_ratios: list[float] = []
+
+    t_win_start = start_ns
+    fi = 0  # frame index
+    n = len(frames)
+
+    while t_win_start < end_ns:
+        t_win_end = t_win_start + interval_ns
+        yellow_count = 0
+        total_count = 0
+
+        while fi < n and frames[fi]["t_ns"] < t_win_end:
+            f = frames[fi]
+            fi += 1
+            ball = f.get("ball")
+            if not ball:
+                continue
+            bx, by = ball["x"], ball["y"]
+            min_d2 = float("inf")
+            closest = None
+            for r in f.get("robots_yellow", []):
+                d2 = (r["x"] - bx) ** 2 + (r["y"] - by) ** 2
+                if d2 < min_d2:
+                    min_d2 = d2
+                    closest = "yellow"
+            for r in f.get("robots_blue", []):
+                d2 = (r["x"] - bx) ** 2 + (r["y"] - by) ** 2
+                if d2 < min_d2:
+                    min_d2 = d2
+                    closest = "blue"
+            if closest:
+                total_count += 1
+                if closest == "yellow":
+                    yellow_count += 1
+
+        t_sec = round((t_win_start - start_ns) / 1e9, 1)
+        timestamps.append(t_sec)
+        yellow_ratios.append(round(yellow_count / total_count, 3) if total_count > 0 else 0.5)
+
+        t_win_start = t_win_end
+
+    return {"timestamps": timestamps, "yellow_ratio": yellow_ratios}
+
+
+def _extract_score_timeline(referee_snapshots: list, start_ns: int) -> list[dict]:
+    """スコア変化点のタイムライン。"""
+    timeline: list[dict] = []
+    prev_y = prev_b = -1
+
+    for ts_ns, ref in referee_snapshots:
+        y, b = ref.yellow.score, ref.blue.score
+        if y != prev_y or b != prev_b:
+            timeline.append({
+                "t_sec": round((ts_ns - start_ns) / 1e9, 1),
+                "yellow": int(y),
+                "blue": int(b),
+            })
+            prev_y, prev_b = y, b
+
+    return timeline
+
+
+def _extract_events_timeline(referee_snapshots: list, start_ns: int) -> list[dict]:
+    """ゲームイベントのタイムライン。game_events は累積なので差分のみ処理。"""
+    events: list[dict] = []
+    prev_len = 0
+
+    for ts_ns, ref in referee_snapshots:
+        cur_len = len(ref.game_events)
+        for i in range(prev_len, cur_len):
+            ev = ref.game_events[i]
+            try:
+                type_val = int(ev.type)
+            except Exception:
+                continue
+
+            by_team = None
+            location = None
+            by_bot = None
+
+            try:
+                field_name = ev.WhichOneof("event")
+                if field_name:
+                    sub = getattr(ev, field_name)
+                    try:
+                        if sub.HasField("by_team"):
+                            tv = int(sub.by_team)
+                            by_team = "yellow" if tv == 1 else ("blue" if tv == 2 else None)
+                    except Exception:
+                        pass
+                    try:
+                        if sub.HasField("location"):
+                            location = {
+                                "x": round(sub.location.x * 1000),
+                                "y": round(sub.location.y * 1000),
+                            }
+                    except Exception:
+                        pass
+                    try:
+                        if sub.HasField("by_bot"):
+                            by_bot = int(sub.by_bot)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+            t_sec = round((ts_ns - start_ns) / 1e9, 1)
+            events.append({
+                "t_sec": t_sec,
+                "type": type_val,
+                "label": GAME_EVENT_LABELS.get(type_val, f"イベント({type_val})"),
+                "by_team": by_team,
+                "by_bot": by_bot,
+                "location": location,
+            })
+        prev_len = cur_len
+
+    return events
+
+
+def _extract_referee_commands(referee_snapshots: list, start_ns: int) -> list[dict]:
+    """ステージ・コマンド変化のタイムライン。"""
+    timeline: list[dict] = []
+    prev_stage = prev_command = object()  # sentinel
+
+    for ts_ns, ref in referee_snapshots:
+        stage = int(ref.stage)
+        command = int(ref.command)
+        if stage != prev_stage or command != prev_command:
+            timeline.append({
+                "t_sec": round((ts_ns - start_ns) / 1e9, 1),
+                "stage": STAGE_NAMES.get(stage, f"ステージ({stage})"),
+                "command": COMMAND_NAMES.get(command, f"コマンド({command})"),
+            })
+            prev_stage, prev_command = stage, command
+
+    return timeline
+
+
+def _downsample_replay_frames(frames: list[dict], start_ns: int, fps: int) -> list[dict]:
+    """フルマッチフレームを fps にダウンサンプリング。t_ns の代わりに t_sec を格納。"""
+    if not frames:
+        return []
+
+    end_ns = frames[-1]["t_ns"]
+    interval_ns = int(1e9 / fps)
+    result: list[dict] = []
+    fi = 0
+    n = len(frames)
+    t_ns = start_ns
+
+    while t_ns <= end_ns:
+        # t_ns 以降で最も近いフレームを探す
+        while fi + 1 < n and frames[fi + 1]["t_ns"] <= t_ns:
+            fi += 1
+        # 前後のフレームから近い方を選択
+        best_fi = fi
+        if fi + 1 < n:
+            d_curr = abs(frames[fi]["t_ns"] - t_ns)
+            d_next = abs(frames[fi + 1]["t_ns"] - t_ns)
+            if d_next < d_curr:
+                best_fi = fi + 1
+        f = frames[best_fi]
+        result.append({
+            "t_sec": round((t_ns - start_ns) / 1e9, 2),
+            "ball": f["ball"],
+            "robots_yellow": f["robots_yellow"],
+            "robots_blue": f["robots_blue"],
+        })
+        t_ns += interval_ns
+
+    return result
+
+
+def _goal_scenes_from_parsed(position_frames: list[dict], referee_snapshots: list) -> list[dict]:
+    """パース済みデータからゴールシーンを抽出 (extract_goal_scenes の内部版)。"""
+    scenes: list[dict] = []
+    prev_y = prev_b = 0
+    goal_index = 0
+
+    for goal_time_ns, ref in referee_snapshots:
+        y, b = ref.yellow.score, ref.blue.score
+        scored_by = None
+        if y > prev_y:
+            scored_by = "yellow"
+        elif b > prev_b:
+            scored_by = "blue"
+
+        if scored_by:
+            start_ns = goal_time_ns - int(SCENE_DURATION_SEC * 1e9)
+            raw = [f for f in position_frames if start_ns <= f["t_ns"] <= goal_time_ns]
+            if raw:
+                frames = _downsample_frames(raw, goal_time_ns, SCENE_DURATION_SEC, OUTPUT_FPS)
+                scenes.append({
+                    "goal_index": goal_index,
+                    "scored_by": scored_by,
+                    "score_after": {"yellow": int(y), "blue": int(b)},
+                    "duration_sec": SCENE_DURATION_SEC,
+                    "fps": OUTPUT_FPS,
+                    "frames": frames,
+                })
+                goal_index += 1
+
+        prev_y, prev_b = y, b
+
+    return scenes
+
+
+def extract_full_analysis(log_gz_bytes: bytes, filename: str = "") -> dict:
+    """SSL game log (.log.gz) をフル解析して詳細分析データを返す。
+
+    Returns:
+        meta, replay_frames, ball_heatmap, robot_heatmaps,
+        goal_scenes, events, possession, score_timeline, referee_commands
+    """
+
+    # gzip 展開
+    try:
+        data = gzip.decompress(log_gz_bytes)
+    except EOFError:
+        dec = zlib.decompressobj(47)
+        data = dec.decompress(log_gz_bytes)
+        data += dec.flush()
+
+    referee_snapshots: list[tuple[int, object]] = []
+    position_frames: list[dict] = []
+    has_tracker = False
+
+    for timestamp_ns, msg_type, raw in _iter_messages(data):
+        if msg_type == MSG_TYPE_REFEREE:
+            try:
+                ref = ssl_gc_referee_message_pb2.Referee()
+                ref.ParseFromString(raw)
+                referee_snapshots.append((timestamp_ns, ref))
+            except Exception:
+                pass
+        elif msg_type in (MSG_TYPE_VISION_2010, MSG_TYPE_VISION_2014) and not has_tracker:
+            try:
+                wrapper = ssl_vision_wrapper_pb2.SSL_WrapperPacket()
+                wrapper.ParseFromString(raw)
+                frame = _detection_to_frame(timestamp_ns, wrapper)
+                if frame:
+                    position_frames.append(frame)
+            except Exception:
+                pass
+        elif msg_type == MSG_TYPE_TRACKER:
+            try:
+                wrapper = TrackerWrapperPacket()
+                wrapper.ParseFromString(raw)
+                frame = _tracker_to_frame(timestamp_ns, wrapper)
+                if frame:
+                    if not has_tracker:
+                        has_tracker = True
+                        position_frames = []
+                    position_frames.append(frame)
+            except Exception:
+                pass
+
+    # 開始時刻の基準
+    start_ns = position_frames[0]["t_ns"] if position_frames else (
+        referee_snapshots[0][0] if referee_snapshots else 0
+    )
+    end_ns = position_frames[-1]["t_ns"] if position_frames else (
+        referee_snapshots[-1][0] if referee_snapshots else 0
+    )
+    duration_sec = round((end_ns - start_ns) / 1e9, 1)
+
+    # チーム名・最終スコア
+    team_yellow, team_blue = "Yellow", "Blue"
+    final_score = {"yellow": 0, "blue": 0}
+    if referee_snapshots:
+        last_ref = referee_snapshots[-1][1]
+        try:
+            if last_ref.yellow.HasField("name"):
+                team_yellow = last_ref.yellow.name
+        except Exception:
+            pass
+        try:
+            if last_ref.blue.HasField("name"):
+                team_blue = last_ref.blue.name
+        except Exception:
+            pass
+        final_score = {
+            "yellow": int(last_ref.yellow.score),
+            "blue": int(last_ref.blue.score),
+        }
+
+    # ファイル名からID生成
+    base = os.path.splitext(os.path.basename(filename))[0]
+    if base.endswith(".log"):
+        base = base[:-4]
+    match_id = base.replace(" ", "_").replace("/", "_").replace("\\", "_")
+
+    ball_heatmap, yellow_heatmap, blue_heatmap = _compute_all_heatmaps(position_frames)
+
+    return {
+        "meta": {
+            "id": match_id,
+            "filename": os.path.basename(filename),
+            "teams": {"yellow": team_yellow, "blue": team_blue},
+            "final_score": final_score,
+            "duration_sec": duration_sec,
+        },
+        "replay_frames": _downsample_replay_frames(position_frames, start_ns, REPLAY_FPS),
+        "ball_heatmap": ball_heatmap,
+        "robot_heatmaps": {"yellow": yellow_heatmap, "blue": blue_heatmap},
+        "goal_scenes": _goal_scenes_from_parsed(position_frames, referee_snapshots),
+        "events": _extract_events_timeline(referee_snapshots, start_ns),
+        "possession": _compute_possession(position_frames),
+        "score_timeline": _extract_score_timeline(referee_snapshots, start_ns),
+        "referee_commands": _extract_referee_commands(referee_snapshots, start_ns),
+    }
