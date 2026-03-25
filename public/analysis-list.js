@@ -17,17 +17,21 @@ function resultBadge(score) {
 }
 
 function buildMatchCard(meta) {
-  const { id, filename, teams, final_score, duration_sec } = meta;
+  const { id, filename, teams, final_score, duration_sec, gdrive_url } = meta;
   const yName = teams?.yellow || 'Yellow';
   const bName = teams?.blue   || 'Blue';
   const score = final_score || { yellow: 0, blue: 0 };
   const result = resultBadge(score);
 
+  const dlHtml = gdrive_url
+    ? `<a href="${gdrive_url}" class="match-download-link" target="_blank" rel="noopener" title="ログファイルをダウンロード (Google Drive)" onclick="event.stopPropagation()">&#x1F4E5;</a>`
+    : '';
+
   const a = document.createElement('a');
   a.href = `./analysis.html?id=${encodeURIComponent(id)}`;
   a.className = 'match-card';
   a.innerHTML = `
-    <div class="match-card-filename">${filename || id}</div>
+    <div class="match-card-filename">${filename || id}${dlHtml}</div>
     <div class="match-score-row">
       <span class="match-score-yellow">${score.yellow}</span>
       <span class="match-score-sep">–</span>

@@ -73,6 +73,31 @@ def download_gdrive_file(file_id: str, file_name: str) -> pathlib.Path:
     return dest
 
 
+def list_gdrive_folder_files(folder_id: str) -> dict[str, str]:
+    """Google Drive フォルダのファイル一覧を取得し {filename: file_id} を返す。
+
+    gdown の内部 API を使用。失敗した場合は空 dict を返す。
+    """
+    try:
+        from gdown.download import _get_session
+        from gdown.download_folder import _download_and_parse_google_drive_link
+    except ImportError:
+        return {}
+
+    sess = _get_session(proxy=None, use_cookies=False)
+    url = f"https://drive.google.com/drive/folders/{folder_id}"
+    try:
+        ok, gdrive_file = _download_and_parse_google_drive_link(
+            sess=sess, url=url, quiet=True, remaining_ok=True
+        )
+        if not ok or gdrive_file is None:
+            return {}
+        return {child.name: child.id for child in gdrive_file.children}
+    except Exception as e:
+        print(f"フォルダ一覧取得失敗 (ダウンロードリンクなし): {e}")
+        return {}
+
+
 def download_folder_bulk(folder_id: str) -> list[pathlib.Path]:
     """フォルダを一括ダウンロードして .log.gz ファイルパス一覧を返す。"""
     try:
@@ -95,6 +120,21 @@ def download_folder_bulk(folder_id: str) -> list[pathlib.Path]:
     return sorted(CACHE_DIR.glob("*.log.gz"))
 
 
+def _load_meta_from_json(out_path: pathlib.Path, gdrive_url: str | None) -> dict | None:
+    """JSON を読み込み、必要なら gdrive_url を更新して meta を返す。失敗時は None。"""
+    try:
+        with open(out_path, "r", encoding="utf-8") as f:
+            d = json.load(f)
+        meta = d["meta"]
+        if gdrive_url and meta.get("gdrive_url") != gdrive_url:
+            meta["gdrive_url"] = gdrive_url
+            with open(out_path, "w", encoding="utf-8") as fw:
+                json.dump(d, fw, ensure_ascii=False, separators=(",", ":"))
+        return meta
+    except Exception:
+        return None
+
+
 # ---------------------------------------------------------------------------
 # インクリメンタルモード: 既存の解析済みIDを読み込む
 # ---------------------------------------------------------------------------
@@ -109,9 +149,21 @@ if args.incremental and OUTPUT_INDEX.exists():
         print(f"既存インデックス読み込み失敗: {e}")
 
 # ---------------------------------------------------------------------------
-# フォルダを一括ダウンロードして .log.gz ファイルを収集
+# フォルダのファイル一覧を取得してダウンロード
+# gdrive_files が取得できた場合は個別ダウンロードで重複ネットワーク呼び出しを回避する
 # ---------------------------------------------------------------------------
-log_files = download_folder_bulk(args.folder_id)
+print("Google Drive フォルダのファイル一覧を取得中...")
+gdrive_files: dict[str, str] = list_gdrive_folder_files(args.folder_id)
+
+if gdrive_files:
+    print(f"  {len(gdrive_files)} 件のファイルIDを取得")
+    for fname, fid in gdrive_files.items():
+        if fname.endswith(".log.gz"):
+            download_gdrive_file(fid, fname)
+    log_files = sorted(CACHE_DIR.glob("*.log.gz"))
+else:
+    print("  ファイルID取得失敗 (ダウンロードリンクなし)")
+    log_files = download_folder_bulk(args.folder_id)
 
 if not log_files:
     # フォールバック: キャッシュディレクトリにある既存ファイルのみ処理
@@ -139,17 +191,16 @@ for log_path in log_files:
         base = base[:-4]
     match_id = base.replace(" ", "_").replace("/", "_").replace("\\", "_")
 
+    file_id = gdrive_files.get(filename)
+    gdrive_url = f"https://drive.google.com/file/d/{file_id}/view" if file_id else None
+
     if args.incremental and match_id in existing_ids:
         print(f"スキップ (既存): {filename}")
-        # 既存の JSON からメタデータを読み込んで一覧に追加
         out_path = OUTPUT_DATA_DIR / f"{match_id}.json"
         if out_path.exists():
-            try:
-                with open(out_path, "r", encoding="utf-8") as f:
-                    d = json.load(f)
-                matches_meta.append(d["meta"])
-            except Exception:
-                pass
+            meta = _load_meta_from_json(out_path, gdrive_url)
+            if meta:
+                matches_meta.append(meta)
         skipped += 1
         continue
 
@@ -157,12 +208,9 @@ for log_path in log_files:
     out_path = OUTPUT_DATA_DIR / f"{match_id}.json"
     if out_path.exists() and not args.incremental:
         print(f"解析済みキャッシュ使用: {filename}")
-        try:
-            with open(out_path, "r", encoding="utf-8") as f:
-                d = json.load(f)
-            matches_meta.append(d["meta"])
-        except Exception:
-            pass
+        meta = _load_meta_from_json(out_path, gdrive_url)
+        if meta:
+            matches_meta.append(meta)
         skipped += 1
         continue
 
@@ -174,6 +222,9 @@ for log_path in log_files:
         print(f"  解析失敗: {e}")
         errors += 1
         continue
+
+    if gdrive_url:
+        analysis["meta"]["gdrive_url"] = gdrive_url
 
     # 個別 JSON を出力
     with open(out_path, "w", encoding="utf-8") as f:

@@ -185,6 +185,12 @@ function eventCategory(typeVal) {
   document.getElementById('sb-blue-score').textContent   = String(meta.final_score.blue);
   document.getElementById('sb-duration').textContent     = formatSec(meta.duration_sec);
 
+  if (meta.gdrive_url) {
+    const dlLink = document.getElementById('log-download-link');
+    dlLink.href = meta.gdrive_url;
+    dlLink.style.display = '';
+  }
+
   // ============================================================
   // ② フルリプレイ
   // ============================================================
