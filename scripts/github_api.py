@@ -77,7 +77,20 @@ class GitHubWorkflowAPI:
         print(f"jobs API 呼び出し対象: {len(runs_needing_fetch)} 件 (スキップ: {len(workflow_runs) - len(runs_needing_fetch)} 件)")
 
         def fetch_duration(run):
-            jobs = requests.get(run["jobs_url"], headers=self.headers).json()["jobs"]
+            import time
+            for attempt in range(3):
+                response = requests.get(run["jobs_url"], headers=self.headers)
+                data = response.json()
+                if "jobs" in data:
+                    jobs = data["jobs"]
+                    break
+                # レート制限 or 一時的エラー: 少し待ってリトライ
+                wait = int(response.headers.get("Retry-After", 10)) if response.status_code == 429 else 5
+                print(f"jobs API エラー (run_id={run['id']}, status={response.status_code}): {data.get('message', data)}, {wait}秒後リトライ ({attempt+1}/3)")
+                time.sleep(wait)
+            else:
+                print(f"jobs API 3回失敗 (run_id={run['id']}), スキップ")
+                return run["id"], 0
             duration = 0
             for job in jobs:
                 completed_at = datetime.strptime(job["completed_at"], self.time_format)
