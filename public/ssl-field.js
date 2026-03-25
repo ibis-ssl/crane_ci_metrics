@@ -44,10 +44,10 @@ function buildFieldSVG() {
   shadowFilter.appendChild(fds);
   defs.appendChild(shadowFilter);
 
-  // 黄チーム: 右上ハイライト → 外縁に向かって暗い黄
+  // 黄チーム: 右上ハイライト → 外縁に向かって鮮明な黄
   const gradYellow = createSVGElement('radialGradient', { id: `grad-yellow-${uid}`, cx: '38%', cy: '38%', r: '65%' });
-  gradYellow.appendChild(createSVGElement('stop', { offset: '0%',   'stop-color': '#FFF176' }));
-  gradYellow.appendChild(createSVGElement('stop', { offset: '100%', 'stop-color': '#F9A825' }));
+  gradYellow.appendChild(createSVGElement('stop', { offset: '0%',   'stop-color': '#FFF59D' }));
+  gradYellow.appendChild(createSVGElement('stop', { offset: '100%', 'stop-color': '#FFD600' }));
   defs.appendChild(gradYellow);
 
   // 青チーム: 右上ハイライト → 外縁に向かって濃い青
@@ -95,7 +95,7 @@ function buildFieldSVG() {
   // ロボット要素（yellow + blue、各16体分を事前生成）
   const robotElements = { yellow: [], blue: [] };
   for (const [team, gradId, strokeColor] of [
-    ['yellow', `url(#grad-yellow-${uid})`, '#E65100'],
+    ['yellow', `url(#grad-yellow-${uid})`, '#B8860B'],
     ['blue',   `url(#grad-blue-${uid})`,   '#0D47A1'],
   ]) {
     for (let i = 0; i < 16; i++) {

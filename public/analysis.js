@@ -403,7 +403,7 @@ function eventCategory(typeVal) {
     }
     for (const scene of goal_scenes) {
       container.appendChild(buildSceneCard(
-        { ...scene, date: meta.filename },
+        { ...scene, date: '' },
         { yellow: yName, blue: bName },
       ));
     }
