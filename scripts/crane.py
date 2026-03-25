@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import re
 import argparse
 import pathlib
@@ -67,20 +67,30 @@ workflow_api = github_api.GitHubWorkflowAPI(github_token)
 
 prev_data = None
 existing_run_ids = set()
+existing_durations = {}
 if args.incremental:
     prev_cache = pathlib.Path(CACHE_DIR) / "github_action_data.json"
     if prev_cache.exists():
         with open(prev_cache, "r") as f:
             prev_data = json.load(f)
-        existing_run_ids = {e["run_id"] for e in prev_data.get("workflow_time", [])}
+        for e in prev_data.get("workflow_time", []):
+            existing_run_ids.add(e["run_id"])
+            existing_durations[e["run_id"]] = e["duration"] * 3600  # hours -> seconds
         print(f"インクリメンタルモード: 既存 {len(existing_run_ids)} 件のrunをスキップ")
     else:
         print("インクリメンタルモード: 前回データなし、フルモードで実行します")
 
-# TODO: Enable accurate options when it runs on GitHub Actions (because of rate limit)
+# 90日前をcutoff_dateとして渡し、ページネーションを早期終了する
+cutoff_date = datetime.now() - timedelta(days=90) if args.incremental else None
+
 workflow_runs = workflow_api.get_workflow_duration_list(
-    REPO, BUILD_WORKFLOW_ID, accurate=True
+    REPO, BUILD_WORKFLOW_ID, accurate=True, cutoff_date=cutoff_date, skip_run_ids=existing_run_ids
 )
+
+# 既知のrunにdurationを補完
+for run in workflow_runs:
+    if run["id"] in existing_durations and "duration" not in run:
+        run["duration"] = existing_durations[run["id"]]
 
 ####################
 # Build time analysis

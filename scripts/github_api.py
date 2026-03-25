@@ -13,7 +13,10 @@ class GitHubWorkflowAPI:
         }
         self.time_format = "%Y-%m-%dT%H:%M:%SZ"
 
-    def get_workflow_duration_list(self, repo: str, workflow_id: str, accurate=False, cutoff_date=None):
+    def get_workflow_duration_list(self, repo: str, workflow_id: str, accurate=False, cutoff_date=None, skip_run_ids=None):
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        skip_run_ids = skip_run_ids or set()
         payloads = {"per_page": 100, "status": "completed", "page": "1"}
         endpoint = (
             f"https://api.github.com/repos/{repo}/actions/workflows/{workflow_id}/runs"
@@ -69,15 +72,29 @@ class GitHubWorkflowAPI:
 
             return workflow_runs
 
-        # By calling jobs API for each workflow run
-        for run in workflow_runs:
-            jobs = requests.get(run["jobs_url"], headers=self.headers).json()["jobs"]
+        # By calling jobs API for each workflow run (parallel, skip known runs)
+        runs_needing_fetch = [r for r in workflow_runs if r["id"] not in skip_run_ids]
+        print(f"jobs API 呼び出し対象: {len(runs_needing_fetch)} 件 (スキップ: {len(workflow_runs) - len(runs_needing_fetch)} 件)")
 
-            run["duration"] = 0
+        def fetch_duration(run):
+            jobs = requests.get(run["jobs_url"], headers=self.headers).json()["jobs"]
+            duration = 0
             for job in jobs:
                 completed_at = datetime.strptime(job["completed_at"], self.time_format)
                 started_at = datetime.strptime(job["started_at"], self.time_format)
-                run["duration"] += (completed_at - started_at).total_seconds()
+                duration += (completed_at - started_at).total_seconds()
+            return run["id"], duration
+
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = {executor.submit(fetch_duration, run): run for run in runs_needing_fetch}
+            results = {}
+            for future in as_completed(futures):
+                run_id, duration = future.result()
+                results[run_id] = duration
+
+        for run in workflow_runs:
+            if run["id"] in results:
+                run["duration"] = results[run["id"]]
 
         return workflow_runs
 
