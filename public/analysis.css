@@ -1,0 +1,565 @@
+/* ============================================================
+   SSL 実試合分析ページ – M3 Expressive ダークテーマ
+   player-m3-tokens.css が先に読み込まれていること
+   ============================================================ */
+
+:root {
+  --an-yellow: #FDD663;
+  --an-blue:   #5B9BF5;
+  --an-ball:   #ff8c00;
+  --an-surface:     var(--md-sys-color-surface);
+  --an-surface-c:   var(--md-sys-color-surface-container);
+  --an-surface-cl:  var(--md-sys-color-surface-container-low);
+  --an-surface-ch:  var(--md-sys-color-surface-container-high);
+  --an-on-surface:  var(--md-sys-color-on-surface);
+  --an-on-variant:  var(--md-sys-color-on-surface-variant);
+  --an-outline:     var(--md-sys-color-outline-variant);
+  --an-primary:     var(--md-sys-color-primary);
+  --an-primary-c:   var(--md-sys-color-primary-container);
+  --an-on-primary-c: var(--md-sys-color-on-primary-container);
+}
+
+/* ============================================================
+   ベース
+   ============================================================ */
+.analysis-page {
+  min-height: 100vh;
+  background: var(--an-surface);
+  color: var(--an-on-surface);
+  font-family: var(--md-sys-typescale-body-font, 'Inter', sans-serif);
+  margin: 0;
+  padding: 0 0 80px;
+}
+
+/* ============================================================
+   ヘッダー
+   ============================================================ */
+.an-header {
+  background: var(--an-surface-cl);
+  border-bottom: 1px solid var(--an-outline);
+  padding: 20px 24px;
+  margin-bottom: 0;
+}
+
+.an-header-inner {
+  max-width: 1400px;
+  margin: 0 auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.an-title {
+  font-size: 1.6rem;
+  font-weight: 700;
+  margin: 0 0 4px;
+  color: var(--an-on-surface);
+}
+
+.an-subtitle {
+  font-size: 0.88rem;
+  color: var(--an-on-variant);
+  margin: 0;
+}
+
+.page-nav {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.nav-link {
+  font-size: 0.83rem;
+  color: var(--an-on-variant);
+  text-decoration: none;
+  padding: 5px 12px;
+  border: 1px solid var(--an-outline);
+  border-radius: 9999px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.nav-link:hover { background: var(--an-surface-ch); color: var(--an-on-surface); }
+.nav-link.active { background: var(--an-primary-c); color: var(--an-on-primary-c); border-color: transparent; }
+
+/* ============================================================
+   ローディング
+   ============================================================ */
+.an-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+}
+
+.an-loading-inner {
+  text-align: center;
+}
+
+.an-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--an-outline);
+  border-top-color: var(--an-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin: 0 auto 16px;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ============================================================
+   コンテンツ
+   ============================================================ */
+.an-content {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 24px 24px 0;
+}
+
+.an-section {
+  background: var(--an-surface-cl);
+  border: 1px solid var(--an-outline);
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.an-section-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0 0 6px;
+  color: var(--an-on-surface);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.an-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: var(--an-primary-c);
+  color: var(--an-on-primary-c);
+  padding: 2px 8px;
+  border-radius: 9999px;
+  vertical-align: middle;
+}
+
+.an-section-desc {
+  font-size: 0.85rem;
+  color: var(--an-on-variant);
+  margin: 0 0 16px;
+}
+
+/* ============================================================
+   スコアボード
+   ============================================================ */
+.an-scoreboard-section {
+  padding: 20px 24px;
+}
+
+.an-scoreboard {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+  flex-wrap: wrap;
+}
+
+.an-team {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.yellow-side { flex-direction: row; }
+.blue-side   { flex-direction: row-reverse; }
+
+.an-team-name {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--an-on-variant);
+}
+
+.an-team-score {
+  font-size: 4rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.yellow-side .an-team-score { color: var(--an-yellow); }
+.blue-side   .an-team-score { color: var(--an-blue); }
+
+.an-sep {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.an-vs {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--an-on-variant);
+}
+
+.an-duration {
+  font-size: 0.8rem;
+  color: var(--an-on-variant);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* ============================================================
+   リプレイ
+   ============================================================ */
+.an-replay-layout {
+  display: grid;
+  grid-template-columns: 1fr 200px;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+@media (max-width: 900px) {
+  .an-replay-layout { grid-template-columns: 1fr; }
+}
+
+.an-field-card {
+  background: var(--an-surface-ch);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.an-field-container {
+  width: 100%;
+  aspect-ratio: 13400 / 10400;
+}
+
+.an-field-container svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.goal-field-svg {
+  width: 100%;
+  height: 100%;
+}
+
+.an-zoom-hint {
+  font-size: 0.72rem;
+  color: var(--an-on-variant);
+  text-align: center;
+  padding: 4px 8px 6px;
+  margin: 0;
+}
+
+.an-replay-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.an-info-card {
+  background: var(--an-surface-ch);
+  border-radius: 12px;
+  padding: 12px 16px;
+}
+
+.an-mini-scoreboard {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font-size: 2.5rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.an-mini-score.yellow-score { color: var(--an-yellow); }
+.an-mini-score.blue-score   { color: var(--an-blue); }
+.an-mini-sep { color: var(--an-on-variant); }
+
+.an-panel-label {
+  font-size: 0.72rem;
+  color: var(--an-on-variant);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0 0 2px;
+}
+
+.an-panel-value {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--an-on-surface);
+  margin: 0;
+  overflow-wrap: break-word;
+}
+
+/* ============================================================
+   リプレイバー
+   ============================================================ */
+.an-replay-bar {
+  background: var(--an-surface-c);
+  border: 1px solid var(--an-outline);
+  border-radius: 12px;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.an-transport {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.an-icon-btn {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--an-on-surface);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+
+.an-icon-btn:hover { background: var(--an-surface-ch); }
+
+.an-icon-btn svg { width: 16px; height: 16px; }
+
+.an-play-btn {
+  width: 44px;
+  height: 44px;
+  background: var(--an-primary);
+  color: #000;
+}
+
+.an-play-btn:hover { background: var(--an-primary); filter: brightness(1.15); }
+
+.an-play-btn svg { width: 18px; height: 18px; }
+
+.an-timeline-section {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 200px;
+}
+
+.an-time-disp {
+  font-size: 0.78rem;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--an-on-variant);
+  white-space: nowrap;
+}
+
+.an-timeline-track {
+  flex: 1;
+  height: 4px;
+  background: var(--an-outline);
+  border-radius: 2px;
+  position: relative;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.an-timeline-progress {
+  height: 100%;
+  background: var(--an-primary);
+  border-radius: 2px;
+  width: 0%;
+  pointer-events: none;
+}
+
+.an-timeline-thumb {
+  width: 14px;
+  height: 14px;
+  background: var(--an-primary);
+  border-radius: 50%;
+  position: absolute;
+  top: 50%;
+  left: 0%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  transition: transform 0.1s;
+}
+
+.an-timeline-track:hover .an-timeline-thumb {
+  transform: translate(-50%, -50%) scale(1.3);
+}
+
+.an-rate-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.an-rate-label {
+  font-size: 0.75rem;
+  color: var(--an-on-variant);
+}
+
+.an-rate-select {
+  background: var(--an-surface-ch);
+  color: var(--an-on-surface);
+  border: 1px solid var(--an-outline);
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+/* ============================================================
+   チャート
+   ============================================================ */
+.an-chart-container {
+  min-height: 220px;
+}
+
+/* ============================================================
+   ヒートマップ
+   ============================================================ */
+.an-heatmap-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.an-heatmap-card {
+  background: var(--an-surface-ch);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.an-heatmap-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin: 0 0 8px;
+  color: var(--an-on-variant);
+}
+
+.an-heatmap-canvas {
+  width: 100%;
+  aspect-ratio: 4/3;
+  border-radius: 8px;
+  display: block;
+}
+
+/* ============================================================
+   ゴールシーングリッド (goals.css のスタイルを流用)
+   ============================================================ */
+.an-goal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 20px;
+}
+
+/* goals.css のカードスタイルがここに適用される想定。
+   個別スタイルが必要な場合は以下に追加する。 */
+
+/* ============================================================
+   フィルターバー
+   ============================================================ */
+.an-filter-bar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.an-filter-btn {
+  padding: 5px 14px;
+  border-radius: 9999px;
+  border: 1px solid var(--an-outline);
+  background: transparent;
+  color: var(--an-on-variant);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.an-filter-btn:hover { background: var(--an-surface-ch); color: var(--an-on-surface); }
+.an-filter-btn.active { background: var(--an-primary-c); color: var(--an-on-primary-c); border-color: transparent; }
+
+/* ============================================================
+   テーブル
+   ============================================================ */
+.an-table-wrap {
+  overflow-x: auto;
+  border-radius: 10px;
+  border: 1px solid var(--an-outline);
+}
+
+.an-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+}
+
+.an-table th {
+  background: var(--an-surface-c);
+  color: var(--an-on-variant);
+  font-weight: 600;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 10px 14px;
+  text-align: left;
+  border-bottom: 1px solid var(--an-outline);
+}
+
+.an-table td {
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--an-outline);
+  color: var(--an-on-surface);
+  vertical-align: middle;
+}
+
+.an-table tr:last-child td { border-bottom: none; }
+.an-table tbody tr:hover td { background: var(--an-surface-c); }
+
+.an-event-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.an-event-badge.goal   { background: rgba(255,215,0,0.2); color: #FFD700; }
+.an-event-badge.foul   { background: rgba(255,80,80,0.15); color: #ff6060; }
+.an-event-badge.ball   { background: rgba(100,180,255,0.15); color: #64b4ff; }
+.an-event-badge.info   { background: rgba(180,180,180,0.15); color: #b0b0b0; }
+
+.an-team-chip {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+.an-team-chip.yellow { background: var(--an-yellow); }
+.an-team-chip.blue   { background: var(--an-blue); }
+
+/* ============================================================
+   レスポンシブ
+   ============================================================ */
+@media (max-width: 700px) {
+  .an-header-inner { flex-direction: column; }
+  .an-content { padding: 12px; }
+  .an-section { padding: 16px; }
+  .an-scoreboard { gap: 16px; }
+  .an-team-score { font-size: 2.8rem; }
+}

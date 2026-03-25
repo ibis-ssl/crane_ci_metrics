@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>試合分析 – ibis-ssl</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+    <link href="./player-m3-tokens.css" rel="stylesheet" />
+    <link href="./analysis.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+  </head>
+  <body class="analysis-page">
+
+    <!-- ヘッダー -->
+    <header class="an-header">
+      <div class="an-header-inner">
+        <div>
+          <h1 class="an-title" id="match-title">試合分析</h1>
+          <p class="an-subtitle" id="match-subtitle">読み込み中...</p>
+        </div>
+        <nav class="page-nav">
+          <a href="./index.html"       class="nav-link">ビルド時間分析</a>
+          <a href="./match.html"       class="nav-link">TIGERs対戦統計</a>
+          <a href="./goals.html"       class="nav-link">ゴールシーン一覧</a>
+          <a href="./player.html"      class="nav-link">ログプレイヤー ▶</a>
+          <a href="./analysis-list.html" class="nav-link active">試合ログ分析</a>
+        </nav>
+      </div>
+    </header>
+
+    <!-- ローディング -->
+    <div id="loading-overlay" class="an-loading">
+      <div class="an-loading-inner">
+        <div class="an-spinner"></div>
+        <p id="loading-msg">試合データを読み込み中...</p>
+      </div>
+    </div>
+
+    <!-- メインコンテンツ -->
+    <main id="main-content" class="an-content" style="display:none">
+
+      <!-- ① スコアボード -->
+      <section class="an-section an-scoreboard-section">
+        <div class="an-scoreboard">
+          <div class="an-team yellow-side">
+            <span id="sb-yellow-name" class="an-team-name">Yellow</span>
+            <span id="sb-yellow-score" class="an-team-score">0</span>
+          </div>
+          <div class="an-sep">
+            <span class="an-vs">–</span>
+            <span id="sb-duration" class="an-duration">–</span>
+          </div>
+          <div class="an-team blue-side">
+            <span id="sb-blue-score" class="an-team-score">0</span>
+            <span id="sb-blue-name" class="an-team-name">Blue</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ② フルリプレイ -->
+      <section class="an-section">
+        <h2 class="an-section-title">フルゲームリプレイ <span class="an-badge">3fps</span></h2>
+        <p class="an-section-desc">試合全体のボール・ロボット軌跡をリプレイします。スコアはリアルタイムで更新されます。</p>
+        <div class="an-replay-layout">
+          <!-- SVG フィールド -->
+          <div class="an-field-card">
+            <div id="replay-field-container" class="an-field-container"></div>
+            <p class="an-zoom-hint">ホイール: ズーム　ドラッグ: パン　ダブルクリック: リセット</p>
+          </div>
+          <!-- リプレイ情報パネル -->
+          <div class="an-replay-panel">
+            <div class="an-info-card">
+              <div class="an-mini-scoreboard">
+                <span id="replay-score-yellow" class="an-mini-score yellow-score">0</span>
+                <span class="an-mini-sep">–</span>
+                <span id="replay-score-blue" class="an-mini-score blue-score">0</span>
+              </div>
+            </div>
+            <div class="an-info-card">
+              <p class="an-panel-label">ステージ</p>
+              <p id="replay-stage" class="an-panel-value">–</p>
+              <p class="an-panel-label" style="margin-top:8px">コマンド</p>
+              <p id="replay-command" class="an-panel-value">–</p>
+            </div>
+          </div>
+        </div>
+        <!-- リプレイバー -->
+        <div class="an-replay-bar">
+          <div class="an-transport">
+            <button id="rp-step-back"  class="an-icon-btn" title="1フレーム戻る">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/></svg>
+            </button>
+            <button id="rp-play" class="an-icon-btn an-play-btn" title="再生/一時停止 (Space)">
+              <svg id="rp-play-icon"  viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              <svg id="rp-pause-icon" viewBox="0 0 24 24" fill="currentColor" style="display:none"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
+            </button>
+            <button id="rp-step-fwd"  class="an-icon-btn" title="1フレーム進む">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="4" x2="19" y2="20"/></svg>
+            </button>
+          </div>
+          <div class="an-timeline-section">
+            <span id="rp-time-current" class="an-time-disp">0:00</span>
+            <div class="an-timeline-track" id="rp-timeline-track">
+              <div class="an-timeline-progress" id="rp-timeline-progress"></div>
+              <div class="an-timeline-thumb"    id="rp-timeline-thumb"></div>
+            </div>
+            <span id="rp-time-total" class="an-time-disp">0:00</span>
+          </div>
+          <div class="an-rate-wrap">
+            <label class="an-rate-label" for="rp-rate-select">Rate</label>
+            <select id="rp-rate-select" class="an-rate-select">
+              <option value="0.25">0.25x</option>
+              <option value="0.5">0.5x</option>
+              <option value="1" selected>1x</option>
+              <option value="2">2x</option>
+              <option value="4">4x</option>
+            </select>
+          </div>
+        </div>
+      </section>
+
+      <!-- ③ スコアタイムライン -->
+      <section class="an-section">
+        <h2 class="an-section-title">スコアタイムライン</h2>
+        <p class="an-section-desc">試合を通じたスコアの推移。</p>
+        <div id="score-chart" class="an-chart-container"></div>
+      </section>
+
+      <!-- ④ ポゼッション分析 -->
+      <section class="an-section">
+        <h2 class="an-section-title">ポゼッション分析</h2>
+        <p class="an-section-desc">5秒ごとにボール最近接チームを集計した支配率の推移。</p>
+        <div id="possession-chart" class="an-chart-container"></div>
+      </section>
+
+      <!-- ⑤ ヒートマップ -->
+      <section class="an-section">
+        <h2 class="an-section-title">ヒートマップ</h2>
+        <p class="an-section-desc">ボールおよびロボットの位置密度分布 (100mm × 100mm ビン)。</p>
+        <div class="an-heatmap-grid">
+          <div class="an-heatmap-card">
+            <h3 class="an-heatmap-title">ボール</h3>
+            <canvas id="heatmap-ball" class="an-heatmap-canvas"></canvas>
+          </div>
+          <div class="an-heatmap-card">
+            <h3 class="an-heatmap-title" style="color:var(--an-yellow)">Yellow チーム</h3>
+            <canvas id="heatmap-yellow" class="an-heatmap-canvas"></canvas>
+          </div>
+          <div class="an-heatmap-card">
+            <h3 class="an-heatmap-title" style="color:var(--an-blue)">Blue チーム</h3>
+            <canvas id="heatmap-blue" class="an-heatmap-canvas"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <!-- ⑥ ゴールシーン集 -->
+      <section class="an-section" id="goal-scenes-section">
+        <h2 class="an-section-title">ゴールシーン集</h2>
+        <p class="an-section-desc">各ゴールの直前 10 秒を 10fps でリプレイします。</p>
+        <div id="goal-scenes-container" class="an-goal-grid"></div>
+      </section>
+
+      <!-- ⑦ ゲームイベント一覧 -->
+      <section class="an-section">
+        <h2 class="an-section-title">ゲームイベント一覧</h2>
+        <p class="an-section-desc">試合中に発生したすべてのゲームイベント。</p>
+        <div class="an-filter-bar" id="event-filter-bar">
+          <button class="an-filter-btn active" data-filter="all">すべて</button>
+          <button class="an-filter-btn" data-filter="goal">ゴール</button>
+          <button class="an-filter-btn" data-filter="foul">ファウル</button>
+          <button class="an-filter-btn" data-filter="ball">ボール</button>
+          <button class="an-filter-btn" data-filter="yellow">Yellow</button>
+          <button class="an-filter-btn" data-filter="blue">Blue</button>
+        </div>
+        <div class="an-table-wrap">
+          <table id="events-table" class="an-table">
+            <thead>
+              <tr>
+                <th>時刻 (s)</th>
+                <th>イベント</th>
+                <th>チーム</th>
+                <th>ロボット</th>
+                <th>座標 (mm)</th>
+              </tr>
+            </thead>
+            <tbody id="events-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ⑧ レフェリーコマンド一覧 -->
+      <section class="an-section">
+        <h2 class="an-section-title">レフェリーコマンド履歴</h2>
+        <p class="an-section-desc">ステージ・コマンドの変化履歴。</p>
+        <div class="an-table-wrap">
+          <table class="an-table">
+            <thead>
+              <tr>
+                <th>時刻 (s)</th>
+                <th>ステージ</th>
+                <th>コマンド</th>
+              </tr>
+            </thead>
+            <tbody id="commands-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- 共有モジュール -->
+    <script src="./ssl-field.js"></script>
+    <script src="./heatmap-renderer.js"></script>
+    <!-- goals.js の GoalScenePlayer / buildSceneCard を流用するため先に読み込む -->
+    <script src="./goals.js" defer></script>
+    <!-- メインロジック -->
+    <script src="./analysis.js"></script>
+  </body>
+</html>

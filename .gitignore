@@ -8,3 +8,5 @@ node_modules/
 public/goal_scenes.json
 public/github_action_data.json
 public/match_data.json
+public/analysis-index.json
+public/analysis-data/
