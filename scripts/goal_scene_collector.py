@@ -1,5 +1,6 @@
 """Collects goal scene data from SSL game logs in CI artifacts."""
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 import argparse
 import json
@@ -72,9 +73,9 @@ if args.incremental:
     else:
         print("インクリメンタルモード: 前回データなし、フルモードで実行します")
 
-workflow_runs = workflow_api.get_workflow_duration_list(REPO, MATCH_WORKFLOW_ID, accurate=False)
-
 cutoff_date = datetime.now() - timedelta(days=90)
+workflow_runs = workflow_api.get_workflow_duration_list(REPO, MATCH_WORKFLOW_ID, accurate=False, cutoff_date=cutoff_date)
+
 workflow_runs = [r for r in workflow_runs if r["created_at"] > cutoff_date]
 workflow_runs = [r for r in workflow_runs if r["conclusion"] == "success"]
 
@@ -100,6 +101,8 @@ processed_runs = 0
 skipped_no_artifact = 0
 skipped_no_log = 0
 
+# キャッシュヒットのrunを先に処理し、キャッシュミスのrunを並列処理対象にする
+runs_to_fetch = []
 for run in workflow_runs:
     run_id = run["id"]
     if run_id in existing_run_ids:
@@ -107,7 +110,6 @@ for run in workflow_runs:
 
     date_str = run["created_at"].strftime("%Y/%m/%d %H:%M:%S")
 
-    # キャッシュにゴールシーンデータがあればスキップ
     scene_cache_key = f"goal-scenes-{REPO}-{run_id}"
     scene_cache_path = pathlib.Path(CACHE_DIR) / scene_cache_key.replace("/", "_")
     if scene_cache_path.exists():
@@ -118,9 +120,17 @@ for run in workflow_runs:
             scene["date"] = date_str
         all_scenes.extend(cached)
         processed_runs += 1
-        continue
+    else:
+        runs_to_fetch.append(run)
 
-    # アーティファクト一覧を取得
+
+def process_run(run):
+    """1つのrunのアーティファクトをダウンロードしてゴールシーンを抽出する。
+    Returns (run_id, date_str, scenes, status) where status is 'ok', 'no_artifact', 'no_log', or 'error'.
+    """
+    run_id = run["id"]
+    date_str = run["created_at"].strftime("%Y/%m/%d %H:%M:%S")
+
     try:
         artifacts = try_cache_json(
             f"goal-artifacts-{REPO}-{run_id}",
@@ -128,24 +138,21 @@ for run in workflow_runs:
         )
     except Exception as e:
         print(f"run_id={run_id}: アーティファクト一覧取得失敗: {e}")
-        continue
+        return run_id, date_str, None, "error"
 
     log_artifact = find_log_artifact(artifacts)
     if log_artifact is None:
-        skipped_no_artifact += 1
-        continue
+        return run_id, date_str, None, "no_artifact"
 
     artifact_id = log_artifact["id"]
     artifact_name = log_artifact["name"]
 
-    # アーティファクトをダウンロード
     try:
         files = workflow_api.download_artifact(REPO, artifact_id)
     except Exception as e:
         print(f"run_id={run_id}: アーティファクトダウンロード失敗: {e}")
-        continue
+        return run_id, date_str, None, "error"
 
-    # .log.gz ファイルを探す
     log_gz_data = None
     log_filename = None
     for filename, content in files.items():
@@ -156,26 +163,38 @@ for run in workflow_runs:
 
     if log_gz_data is None:
         print(f"run_id={run_id}: .log.gz ファイルが {artifact_name} に見つかりません (files: {list(files.keys())})")
-        skipped_no_log += 1
-        continue
+        return run_id, date_str, None, "no_log"
 
-    # ゴールシーンを抽出
     try:
         scenes = ssl_log_parser.extract_goal_scenes(log_gz_data)
         print(f"run_id={run_id} ({date_str}): {len(scenes)} ゴールシーン抽出 ({log_filename})")
     except Exception as e:
         print(f"run_id={run_id}: ログパース失敗: {e}")
-        continue
+        return run_id, date_str, None, "error"
 
-    # キャッシュに保存
+    scene_cache_key = f"goal-scenes-{REPO}-{run_id}"
+    scene_cache_path = pathlib.Path(CACHE_DIR) / scene_cache_key.replace("/", "_")
     with open(scene_cache_path, "w") as f:
         json.dump(scenes, f, indent=2, ensure_ascii=False)
 
-    for scene in scenes:
-        scene["run_id"] = run_id
-        scene["date"] = date_str
-    all_scenes.extend(scenes)
-    processed_runs += 1
+    return run_id, date_str, scenes, "ok"
+
+
+MAX_WORKERS = 4
+with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+    futures = {executor.submit(process_run, run): run for run in runs_to_fetch}
+    for future in as_completed(futures):
+        run_id, date_str, scenes, status = future.result()
+        if status == "ok":
+            for scene in scenes:
+                scene["run_id"] = run_id
+                scene["date"] = date_str
+            all_scenes.extend(scenes)
+            processed_runs += 1
+        elif status == "no_artifact":
+            skipped_no_artifact += 1
+        elif status == "no_log":
+            skipped_no_log += 1
 
 # ゴールシーン一覧を出力（前回データと合算）
 merged_scenes = prev_scenes + all_scenes

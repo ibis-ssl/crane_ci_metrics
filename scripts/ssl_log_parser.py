@@ -13,6 +13,7 @@ SSL log format:
     5: TrackerWrapperPacket (tracker 2020)
 """
 
+import bisect
 import gzip
 import io
 import struct
@@ -179,16 +180,29 @@ def _downsample_frames(
     """ゴール前 duration_sec 秒を fps フレーム/秒にダウンサンプリング。"""
     start_ns = goal_time_ns - int(duration_sec * 1e9)
     interval_ns = int(1e9 / fps)
-    result = []
 
+    # start_ns 以降のフレームのみ対象にして bisect で高速探索
+    timestamps = [f["t_ns"] for f in frames]
+    base_idx = bisect.bisect_left(timestamps, start_ns)
+    candidates = frames[base_idx:]
+    candidate_ts = timestamps[base_idx:]
+
+    result = []
     for i in range(int(duration_sec * fps)):
         target_ns = start_ns + i * interval_ns
-        # target_ns に最も近いフレームを選択
-        best = min(
-            (f for f in frames if f["t_ns"] >= start_ns),
-            key=lambda f: abs(f["t_ns"] - target_ns),
-            default=None,
-        )
+        if not candidates:
+            break
+        # target_ns 以上で最も近いフレームのインデックスを bisect で探す
+        idx = bisect.bisect_left(candidate_ts, target_ns)
+        # idx-1 と idx の前後2候補から近い方を選択
+        best = None
+        best_diff = float("inf")
+        for ci in (idx - 1, idx):
+            if 0 <= ci < len(candidates):
+                diff = abs(candidates[ci]["t_ns"] - target_ns)
+                if diff < best_diff:
+                    best_diff = diff
+                    best = candidates[ci]
         if best is not None:
             result.append({
                 "t": round(i / fps, 1),

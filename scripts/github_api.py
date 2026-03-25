@@ -13,7 +13,7 @@ class GitHubWorkflowAPI:
         }
         self.time_format = "%Y-%m-%dT%H:%M:%SZ"
 
-    def get_workflow_duration_list(self, repo: str, workflow_id: str, accurate=False):
+    def get_workflow_duration_list(self, repo: str, workflow_id: str, accurate=False, cutoff_date=None):
         payloads = {"per_page": 100, "status": "completed", "page": "1"}
         endpoint = (
             f"https://api.github.com/repos/{repo}/actions/workflows/{workflow_id}/runs"
@@ -35,13 +35,21 @@ class GitHubWorkflowAPI:
             "per_page"
         ]  # This calculates the ceiling of total_count/100
 
-        # Fetch using the list of page numbers
+        # Fetch using the list of page numbers; stop early if all runs on page are older than cutoff_date
         for page in range(2, pages_needed + 1):
             payloads["page"] = page
             page_response = requests.get(
                 endpoint, headers=self.headers, params=payloads
             ).json()
-            workflow_runs = page_response["workflow_runs"] + workflow_runs
+            page_runs = page_response["workflow_runs"]
+            workflow_runs = page_runs + workflow_runs
+            if cutoff_date and page_runs:
+                oldest_on_page = min(
+                    datetime.strptime(r["created_at"], self.time_format)
+                    for r in page_runs
+                )
+                if oldest_on_page < cutoff_date:
+                    break
 
         # Time format conversion (utility function)
         for run in workflow_runs:
