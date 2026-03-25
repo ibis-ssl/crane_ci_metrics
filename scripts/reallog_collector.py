@@ -51,77 +51,51 @@ CACHE_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 
-# ---------------------------------------------------------------------------
-# Google Drive からファイルをダウンロード
-# ---------------------------------------------------------------------------
-def download_gdrive_file(file_id: str, file_name: str) -> pathlib.Path:
-    """指定ファイルをキャッシュにダウンロードして返す。キャッシュ済みならスキップ。"""
-    dest = CACHE_DIR / file_name
-    if dest.exists():
-        print(f"  キャッシュ使用: {file_name}")
-        return dest
 
-    try:
-        import gdown
-    except ImportError:
-        print("ERROR: gdown がインストールされていません。pip install gdown を実行してください。")
-        sys.exit(1)
+def download_folder_and_get_ids(folder_id: str) -> tuple[list[pathlib.Path], dict[str, str]]:
+    """フォルダをダウンロードし、ファイルパス一覧と {filename: file_id} を返す。
 
-    url = f"https://drive.google.com/uc?id={file_id}"
-    print(f"  ダウンロード中: {file_name} ...")
-    gdown.download(url, str(dest), quiet=False)
-    return dest
-
-
-def list_gdrive_folder_files(folder_id: str) -> dict[str, str]:
-    """Google Drive フォルダのファイル一覧を取得し {filename: file_id} を返す。
-
-    gdown の内部 API を使用。失敗した場合は空 dict を返す。
+    gdown の "Processing file {id} {name}" 出力を解析して file_id を抽出する。
+    解析に失敗した場合は空 dict を返す。
     """
-    try:
-        from gdown.download import _get_session
-        from gdown.download_folder import _download_and_parse_google_drive_link
-    except ImportError:
-        return {}
+    import io
+    import re
+    from contextlib import redirect_stdout
 
-    _UA = (
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36"
-    )
-    url = f"https://drive.google.com/drive/folders/{folder_id}"
-    try:
-        sess = _get_session(proxy=None, use_cookies=False, user_agent=_UA)
-        ok, gdrive_file = _download_and_parse_google_drive_link(
-            sess=sess, url=url, quiet=True, remaining_ok=True
-        )
-        if not ok or gdrive_file is None:
-            return {}
-        return {child.name: child.id for child in gdrive_file.children}
-    except Exception as e:
-        print(f"フォルダ一覧取得失敗 (ダウンロードリンクなし): {e}")
-        return {}
-
-
-def download_folder_bulk(folder_id: str) -> list[pathlib.Path]:
-    """フォルダを一括ダウンロードして .log.gz ファイルパス一覧を返す。"""
     try:
         import gdown
     except ImportError:
         print("ERROR: gdown がインストールされていません。pip install gdown を実行してください。")
         sys.exit(1)
 
-    print(f"Google Drive フォルダ {folder_id} を一括ダウンロード中...")
+    print(f"Google Drive フォルダ {folder_id} をダウンロード中...")
+    buf = io.StringIO()
     try:
-        gdown.download_folder(
-            id=folder_id,
-            output=str(CACHE_DIR),
-            quiet=False,
-            use_cookies=False,
-        )
+        with redirect_stdout(buf):
+            gdown.download_folder(
+                id=folder_id,
+                output=str(CACHE_DIR),
+                quiet=False,
+                use_cookies=False,
+            )
     except Exception as e:
         print(f"フォルダダウンロード失敗: {e}")
+    finally:
+        captured = buf.getvalue()
+        print(captured, end="")
 
-    return sorted(CACHE_DIR.glob("*.log.gz"))
+    gdrive_files: dict[str, str] = {}
+    for line in captured.splitlines():
+        m = re.match(r"Processing file (\S+) (.+)", line)
+        if m:
+            gdrive_files[m.group(2).strip()] = m.group(1)
+
+    if gdrive_files:
+        print(f"  {len(gdrive_files)} 件のファイルIDを取得")
+    else:
+        print("  ファイルID取得失敗 (ダウンロードリンクなし)")
+
+    return sorted(CACHE_DIR.glob("*.log.gz")), gdrive_files
 
 
 def _load_meta_from_json(out_path: pathlib.Path, gdrive_url: str | None) -> dict | None:
@@ -153,21 +127,9 @@ if args.incremental and OUTPUT_INDEX.exists():
         print(f"既存インデックス読み込み失敗: {e}")
 
 # ---------------------------------------------------------------------------
-# フォルダのファイル一覧を取得してダウンロード
-# gdrive_files が取得できた場合は個別ダウンロードで重複ネットワーク呼び出しを回避する
+# フォルダをダウンロードしてファイル一覧と file_id マッピングを取得
 # ---------------------------------------------------------------------------
-print("Google Drive フォルダのファイル一覧を取得中...")
-gdrive_files: dict[str, str] = list_gdrive_folder_files(args.folder_id)
-
-if gdrive_files:
-    print(f"  {len(gdrive_files)} 件のファイルIDを取得")
-    for fname, fid in gdrive_files.items():
-        if fname.endswith(".log.gz"):
-            download_gdrive_file(fid, fname)
-    log_files = sorted(CACHE_DIR.glob("*.log.gz"))
-else:
-    print("  ファイルID取得失敗 (ダウンロードリンクなし)")
-    log_files = download_folder_bulk(args.folder_id)
+log_files, gdrive_files = download_folder_and_get_ids(args.folder_id)
 
 if not log_files:
     # フォールバック: キャッシュディレクトリにある既存ファイルのみ処理
