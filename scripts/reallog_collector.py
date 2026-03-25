@@ -84,9 +84,13 @@ def list_gdrive_folder_files(folder_id: str) -> dict[str, str]:
     except ImportError:
         return {}
 
-    sess = _get_session(proxy=None, use_cookies=False)
+    _UA = (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36"
+    )
     url = f"https://drive.google.com/drive/folders/{folder_id}"
     try:
+        sess = _get_session(proxy=None, use_cookies=False, user_agent=_UA)
         ok, gdrive_file = _download_and_parse_google_drive_link(
             sess=sess, url=url, quiet=True, remaining_ok=True
         )
