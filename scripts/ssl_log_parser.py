@@ -38,6 +38,62 @@ SSL_LOG_HEADER = b"SSL_LOG_FILE"
 SCENE_DURATION_SEC = 10.0
 OUTPUT_FPS = 10
 
+POSSIBLE_GOAL_TYPE = 39  # GameEvent.Type.POSSIBLE_GOAL
+_TEAM_YELLOW = 1         # sslgc.Team.YELLOW
+_TEAM_BLUE = 2           # sslgc.Team.BLUE
+# POSSIBLE_GOALは同一停止中に複数のRefメッセージに現れる。
+# 同チームの連続イベントをまとめるクールダウン（秒）。
+_POSSIBLE_GOAL_COOLDOWN_NS = int(5 * 1e9)
+
+
+def _collect_possible_goals(referee_snapshots: list) -> list[tuple[int, int]]:
+    """referee_snapshots から POSSIBLE_GOAL イベントを収集する（重複排除済み）。
+
+    Returns:
+        [(timestamp_ns, by_team_int), ...]  時系列順
+        by_team_int: 1=YELLOW, 2=BLUE
+    """
+    result: list[tuple[int, int]] = []
+    seen_ids: set[str] = set()
+    last_ts_by_team: dict[int, int] = {}
+
+    for timestamp_ns, ref in referee_snapshots:
+        for ge in ref.game_events:
+            if ge.type != POSSIBLE_GOAL_TYPE:
+                continue
+            try:
+                by_team = ge.possible_goal.by_team
+            except AttributeError:
+                continue
+
+            # IDがあれば ID ベースで重複排除
+            eid = ge.id if ge.HasField("id") else None
+            if eid:
+                if eid in seen_ids:
+                    continue
+                seen_ids.add(eid)
+            else:
+                # ID なし: 同チームのクールダウン内なら重複とみなす
+                last = last_ts_by_team.get(by_team)
+                if last is not None and timestamp_ns - last < _POSSIBLE_GOAL_COOLDOWN_NS:
+                    continue
+
+            last_ts_by_team[by_team] = timestamp_ns
+            result.append((timestamp_ns, by_team))
+
+    return result
+
+
+def _find_possible_goal_time(possible_goals: list[tuple[int, int]], goal_time_ns: int, team_int: int) -> int:
+    """スコア変化（goal_time_ns）直前で by_team が一致する POSSIBLE_GOAL のタイムスタンプを返す。
+
+    見つからない場合は goal_time_ns をそのまま返す（フォールバック）。
+    """
+    for ts, bt in reversed(possible_goals):
+        if ts <= goal_time_ns and bt == team_int:
+            return ts
+    return goal_time_ns
+
 
 def _iter_messages(data: bytes) -> Iterator[tuple[int, int, bytes]]:
     """(timestamp_ns, message_type, raw_data) を順に返すイテレータ。"""
@@ -198,6 +254,7 @@ def extract_goal_scenes(log_gz_bytes: bytes) -> list[dict]:
                 pass
 
     # スコア変化点（ゴール）を検出
+    possible_goals = _collect_possible_goals(referee_snapshots)
     scenes = []
     prev_yellow_score = 0
     prev_blue_score = 0
@@ -208,18 +265,21 @@ def extract_goal_scenes(log_gz_bytes: bytes) -> list[dict]:
         blue_score = ref.blue.score
 
         scored_by = None
+        team_int = None
         if yellow_score > prev_yellow_score:
             scored_by = "ibis"
+            team_int = _TEAM_YELLOW
         elif blue_score > prev_blue_score:
             scored_by = "tigers"
+            team_int = _TEAM_BLUE
 
         if scored_by:
-            # ゴール前 SCENE_DURATION_SEC 秒のフレームを抽出
-            start_ns = goal_time_ns - int(SCENE_DURATION_SEC * 1e9)
-            scene_frames_raw = [f for f in position_frames if start_ns <= f["t_ns"] <= goal_time_ns]
+            scene_end_ns = _find_possible_goal_time(possible_goals, goal_time_ns, team_int)
+            start_ns = scene_end_ns - int(SCENE_DURATION_SEC * 1e9)
+            scene_frames_raw = [f for f in position_frames if start_ns <= f["t_ns"] <= scene_end_ns]
 
             if scene_frames_raw:
-                frames = _downsample_frames(scene_frames_raw, goal_time_ns, SCENE_DURATION_SEC, OUTPUT_FPS)
+                frames = _downsample_frames(scene_frames_raw, scene_end_ns, SCENE_DURATION_SEC, OUTPUT_FPS)
                 scenes.append({
                     "goal_index": goal_index,
                     "scored_by": scored_by,
@@ -535,6 +595,7 @@ def _downsample_replay_frames(frames: list[dict], start_ns: int, fps: int) -> li
 
 def _goal_scenes_from_parsed(position_frames: list[dict], referee_snapshots: list) -> list[dict]:
     """パース済みデータからゴールシーンを抽出 (extract_goal_scenes の内部版)。"""
+    possible_goals = _collect_possible_goals(referee_snapshots)
     scenes: list[dict] = []
     prev_y = prev_b = 0
     goal_index = 0
@@ -542,16 +603,20 @@ def _goal_scenes_from_parsed(position_frames: list[dict], referee_snapshots: lis
     for goal_time_ns, ref in referee_snapshots:
         y, b = ref.yellow.score, ref.blue.score
         scored_by = None
+        team_int = None
         if y > prev_y:
             scored_by = "yellow"
+            team_int = _TEAM_YELLOW
         elif b > prev_b:
             scored_by = "blue"
+            team_int = _TEAM_BLUE
 
         if scored_by:
-            start_ns = goal_time_ns - int(SCENE_DURATION_SEC * 1e9)
-            raw = [f for f in position_frames if start_ns <= f["t_ns"] <= goal_time_ns]
+            scene_end_ns = _find_possible_goal_time(possible_goals, goal_time_ns, team_int)
+            start_ns = scene_end_ns - int(SCENE_DURATION_SEC * 1e9)
+            raw = [f for f in position_frames if start_ns <= f["t_ns"] <= scene_end_ns]
             if raw:
-                frames = _downsample_frames(raw, goal_time_ns, SCENE_DURATION_SEC, OUTPUT_FPS)
+                frames = _downsample_frames(raw, scene_end_ns, SCENE_DURATION_SEC, OUTPUT_FPS)
                 scenes.append({
                     "goal_index": goal_index,
                     "scored_by": scored_by,

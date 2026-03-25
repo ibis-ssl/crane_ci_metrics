@@ -73,25 +73,38 @@ class GoalScenePlayer {
   }
 }
 
-function buildSceneCard(scene) {
+/**
+ * @param {object} scene
+ * @param {{ yellow?: string, blue?: string }} [teamNames]  省略時は ibis/TIGERs
+ */
+function buildSceneCard(scene, teamNames) {
+  const yLabel = teamNames?.yellow || 'ibis';
+  const bLabel = teamNames?.blue   || 'TIGERs';
+
   const card = document.createElement('div');
   card.className = 'goal-scene-card';
   card.dataset.team = scene.scored_by;
 
-  const isIbis = scene.scored_by === 'ibis';
-  const teamLabel = isIbis ? 'ibis ゴール' : 'TIGERs ゴール';
+  const isYellow   = scene.scored_by === 'yellow' || scene.scored_by === 'ibis';
+  const teamLabel  = isYellow ? `${yLabel} ゴール` : `${bLabel} ゴール`;
+  const badgeClass = isYellow ? 'ibis' : 'tigers';
+  const yScore = scene.score_after.yellow ?? scene.score_after.ibis   ?? 0;
+  const bScore = scene.score_after.blue   ?? scene.score_after.tigers ?? 0;
 
   // カードヘッダー
   const header = document.createElement('div');
   header.className = 'goal-card-header';
+  const runLink = scene.run_id
+    ? `<a class="goal-run-link" href="https://github.com/ibis-ssl/crane/actions/runs/${scene.run_id}" target="_blank">#${scene.run_id}</a>`
+    : '';
   header.innerHTML = `
     <div style="display:flex;align-items:center;gap:8px">
-      <span class="goal-card-badge ${scene.scored_by}">${teamLabel}</span>
-      <span class="goal-card-score">${scene.score_after.ibis} - ${scene.score_after.tigers}</span>
+      <span class="goal-card-badge ${badgeClass}">${teamLabel}</span>
+      <span class="goal-card-score">${yScore} - ${bScore}</span>
     </div>
     <div style="display:flex;align-items:center;gap:8px">
-      <span class="goal-card-meta">${scene.date}</span>
-      <a class="goal-run-link" href="https://github.com/ibis-ssl/crane/actions/runs/${scene.run_id}" target="_blank">#${scene.run_id}</a>
+      <span class="goal-card-meta">${scene.date || ''}</span>
+      ${runLink}
     </div>
   `;
   card.appendChild(header);
@@ -107,8 +120,8 @@ function buildSceneCard(scene) {
   const legend = document.createElement('div');
   legend.className = 'goal-legend';
   legend.innerHTML = `
-    <span class="goal-legend-item"><span class="goal-legend-dot" style="background:${COLORS.ibis}"></span>ibis (yellow)</span>
-    <span class="goal-legend-item"><span class="goal-legend-dot" style="background:${COLORS.tigers}"></span>TIGERs (blue)</span>
+    <span class="goal-legend-item"><span class="goal-legend-dot" style="background:${COLORS.ibis}"></span>${yLabel}</span>
+    <span class="goal-legend-item"><span class="goal-legend-dot" style="background:${COLORS.tigers}"></span>${bLabel}</span>
     <span class="goal-legend-item"><span class="goal-legend-dot" style="background:${COLORS.ball}"></span>ボール</span>
   `;
   card.appendChild(legend);
@@ -208,32 +221,35 @@ function renderScenes(filter) {
   container.appendChild(grid);
 }
 
-document.getElementById('filter-buttons').addEventListener('click', (e) => {
-  const btn = e.target.closest('.goal-filter-btn');
-  if (!btn) return;
-  document.querySelectorAll('.goal-filter-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  currentFilter = btn.dataset.filter;
-  renderScenes(currentFilter);
-});
-
-fetch('goal_scenes.json')
-  .then(res => res.json())
-  .then(json => {
-    document.getElementById('loading-message').style.display = 'none';
-
-    if (!json.scenes || json.scenes.length === 0) {
-      document.getElementById('goal-scenes-container').innerHTML =
-        '<div class="chart-card no-data-message">ゴールシーンデータがありません。</div>';
-      return;
-    }
-
-    // 新しい順（日付降順）
-    allScenes = json.scenes.slice().sort((a, b) => b.date.localeCompare(a.date));
+// goals.html 専用ロジック: 他ページで goals.js を流用する場合はスキップ
+if (document.getElementById('filter-buttons')) {
+  document.getElementById('filter-buttons').addEventListener('click', (e) => {
+    const btn = e.target.closest('.goal-filter-btn');
+    if (!btn) return;
+    document.querySelectorAll('.goal-filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentFilter = btn.dataset.filter;
     renderScenes(currentFilter);
-  })
-  .catch(err => {
-    console.error('データ読み込みに失敗:', err);
-    document.getElementById('loading-message').innerHTML =
-      '<p style="color:#cf222e">goal_scenes.json の読み込みに失敗しました。</p>';
   });
+
+  fetch('goal_scenes.json')
+    .then(res => res.json())
+    .then(json => {
+      document.getElementById('loading-message').style.display = 'none';
+
+      if (!json.scenes || json.scenes.length === 0) {
+        document.getElementById('goal-scenes-container').innerHTML =
+          '<div class="chart-card no-data-message">ゴールシーンデータがありません。</div>';
+        return;
+      }
+
+      // 新しい順（日付降順）
+      allScenes = json.scenes.slice().sort((a, b) => b.date.localeCompare(a.date));
+      renderScenes(currentFilter);
+    })
+    .catch(err => {
+      console.error('データ読み込みに失敗:', err);
+      document.getElementById('loading-message').innerHTML =
+        '<p style="color:#cf222e">goal_scenes.json の読み込みに失敗しました。</p>';
+    });
+}
