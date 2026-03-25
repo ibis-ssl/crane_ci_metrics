@@ -150,6 +150,8 @@ def _tracker_to_frame(timestamp_ns: int, wrapper) -> dict | None:
     if tf.balls:
         b = tf.balls[0]
         ball = {"x": int(b.pos.x * 1000), "y": int(b.pos.y * 1000)}
+        if b.HasField("vel"):
+            ball["vel_ms"] = math.hypot(b.vel.x, b.vel.y)
 
     robots_yellow = []
     robots_blue = []
@@ -162,6 +164,8 @@ def _tracker_to_frame(timestamp_ns: int, wrapper) -> dict | None:
             "y": int(r.pos.y * 1000),
             "theta": round(r.orientation, 1),
         }
+        if r.HasField("vel"):
+            entry["vel_ms"] = math.hypot(r.vel.x, r.vel.y)
         if team_color == TeamColor.Value("TEAM_COLOR_YELLOW"):
             robots_yellow.append(entry)
         else:
@@ -357,6 +361,8 @@ _STATS_MAX_DT_NS = int(500e6)     # 500ms超のΔtはスキップ（フレーム
 _KICK_DETECT_THRESHOLD = 1.5      # m/s の速度増加でキック検出
 _SPRINT_THRESHOLD = 2.0           # m/s 以上でスプリント判定
 _SPRINT_COOLDOWN_NS = int(500e6)  # 同一ロボットのスプリント再検出間隔
+_BALL_MAX_PLAUSIBLE_SPEED = 8.0   # m/s — SSLルール上限6.5 m/s + マージン（これを超える値はノイズとして除外）
+_ROBOT_MAX_PLAUSIBLE_SPEED = 5.0  # m/s — SSL機体性能上限~3-4 m/s + マージン（これを超える値はノイズとして除外）
 
 
 def _compute_match_stats(frames: list[dict]) -> dict:
@@ -399,15 +405,20 @@ def _compute_match_stats(frames: list[dict]) -> dict:
                     dx = ball["x"] - prev_ball["x"]
                     dy = ball["y"] - prev_ball["y"]
                     dist_mm = math.hypot(dx, dy)
-                    speed_ms = (dist_mm / 1000.0) / dt_sec
-                    if speed_ms > ball_max_speed:
-                        ball_max_speed = speed_ms
-                    ball_speed_sum += speed_ms
-                    ball_speed_count += 1
-                    ball_total_dist_mm += dist_mm
-                    if speed_ms - prev_ball_speed >= _KICK_DETECT_THRESHOLD:
-                        kick_count += 1
-                    prev_ball_speed = speed_ms
+                    # Tracker が vel を持っている場合は直接使用（フィルタ済みの値）
+                    # 持っていない場合は位置差分から計算し、上限チェックでノイズ除去
+                    speed_ms = ball.get("vel_ms") if "vel_ms" in ball else (dist_mm / 1000.0) / dt_sec
+                    if speed_ms <= _BALL_MAX_PLAUSIBLE_SPEED:
+                        if speed_ms > ball_max_speed:
+                            ball_max_speed = speed_ms
+                        ball_speed_sum += speed_ms
+                        ball_speed_count += 1
+                        ball_total_dist_mm += dist_mm
+                        if speed_ms - prev_ball_speed >= _KICK_DETECT_THRESHOLD:
+                            kick_count += 1
+                        prev_ball_speed = speed_ms
+                    else:
+                        prev_ball_speed = 0.0  # 異常値フレーム後のキック誤検出を防ぐ
                 else:
                     prev_ball_speed = 0.0
 
@@ -427,7 +438,11 @@ def _compute_match_stats(frames: list[dict]) -> dict:
                             rdx = r["x"] - pr["x"]
                             rdy = r["y"] - pr["y"]
                             rdist = math.hypot(rdx, rdy)
-                            rspd = (rdist / 1000.0) / dt_sec
+                            # Tracker が vel を持っている場合は直接使用（フィルタ済みの値）
+                            # 持っていない場合は位置差分から計算し、上限チェックでノイズ除去
+                            rspd = r.get("vel_ms") if "vel_ms" in r else (rdist / 1000.0) / dt_sec
+                            if rspd > _ROBOT_MAX_PLAUSIBLE_SPEED:
+                                continue  # 非現実的な速度はノイズとして除外
                             rs = robot_stats[key]
                             rs["dist_mm"] += rdist
                             if rspd > rs["max_spd"]:
