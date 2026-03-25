@@ -361,8 +361,6 @@ _STATS_MAX_DT_NS = int(500e6)     # 500ms超のΔtはスキップ（フレーム
 _KICK_DETECT_THRESHOLD = 1.5      # m/s の速度増加でキック検出
 _SPRINT_THRESHOLD = 2.0           # m/s 以上でスプリント判定
 _SPRINT_COOLDOWN_NS = int(500e6)  # 同一ロボットのスプリント再検出間隔
-_BALL_MAX_PLAUSIBLE_SPEED = 8.0   # m/s — SSLルール上限6.5 m/s + マージン（これを超える値はノイズとして除外）
-_ROBOT_MAX_PLAUSIBLE_SPEED = 5.0  # m/s — SSL機体性能上限~3-4 m/s + マージン（これを超える値はノイズとして除外）
 
 
 def _compute_match_stats(frames: list[dict]) -> dict:
@@ -399,16 +397,14 @@ def _compute_match_stats(frames: list[dict]) -> dict:
             if _STATS_MIN_DT_NS <= dt_ns <= _STATS_MAX_DT_NS:
                 dt_sec = dt_ns / 1e9
 
-                # ボール速度・距離
+                # ボール速度・距離（Tracker の vel のみ使用）
                 prev_ball = prev_frame.get("ball")
                 if ball and prev_ball:
                     dx = ball["x"] - prev_ball["x"]
                     dy = ball["y"] - prev_ball["y"]
                     dist_mm = math.hypot(dx, dy)
-                    # Tracker が vel を持っている場合は直接使用（フィルタ済みの値）
-                    # 持っていない場合は位置差分から計算し、上限チェックでノイズ除去
-                    speed_ms = ball.get("vel_ms") if "vel_ms" in ball else (dist_mm / 1000.0) / dt_sec
-                    if speed_ms <= _BALL_MAX_PLAUSIBLE_SPEED:
+                    speed_ms = ball.get("vel_ms")
+                    if speed_ms is not None:
                         if speed_ms > ball_max_speed:
                             ball_max_speed = speed_ms
                         ball_speed_sum += speed_ms
@@ -418,7 +414,7 @@ def _compute_match_stats(frames: list[dict]) -> dict:
                             kick_count += 1
                         prev_ball_speed = speed_ms
                     else:
-                        prev_ball_speed = 0.0  # 異常値フレーム後のキック誤検出を防ぐ
+                        prev_ball_speed = 0.0
                 else:
                     prev_ball_speed = 0.0
 
@@ -438,11 +434,9 @@ def _compute_match_stats(frames: list[dict]) -> dict:
                             rdx = r["x"] - pr["x"]
                             rdy = r["y"] - pr["y"]
                             rdist = math.hypot(rdx, rdy)
-                            # Tracker が vel を持っている場合は直接使用（フィルタ済みの値）
-                            # 持っていない場合は位置差分から計算し、上限チェックでノイズ除去
-                            rspd = r.get("vel_ms") if "vel_ms" in r else (rdist / 1000.0) / dt_sec
-                            if rspd > _ROBOT_MAX_PLAUSIBLE_SPEED:
-                                continue  # 非現実的な速度はノイズとして除外
+                            rspd = r.get("vel_ms")  # Tracker の vel のみ使用
+                            if rspd is None:
+                                continue
                             rs = robot_stats[key]
                             rs["dist_mm"] += rdist
                             if rspd > rs["max_spd"]:
