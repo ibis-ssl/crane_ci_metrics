@@ -1,26 +1,10 @@
 // SSL フィールド共有モジュール
 // goals.js と player.js から使用される SVG フィールド描画ユーティリティ
+// フィールド定数は ssl-field-geometry.js で定義（このファイルより前に読み込むこと）
 
-const FIELD = {
-  length: 12000,
-  width: 9000,
-  goal_width: 1800,
-  goal_depth: 180,
-  penalty_area_length: 1800,
-  penalty_area_width: 3600,
-  center_circle_radius: 500,
-  ball_radius: 43,
-  robot_radius: 90,
-};
-
-const COLORS = {
-  yellow_team: '#FDD663',  // SSL yellow チーム
-  blue_team:   '#5B9BF5',  // SSL blue チーム
-  ball: '#ff8c00',
-  field: '#2d7a2d',
-  line: '#ffffff',
-  goal: '#cccccc',
-};
+// 後方互換性のためエイリアスを維持
+const FIELD = SSL_FIELD;
+const COLORS = FIELD_COLORS;
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const VIEW_MARGIN = 700;
@@ -79,49 +63,33 @@ function buildFieldSVG() {
     x: vx, y: vy, width: vw, height: vh, fill: COLORS.field,
   }));
 
-  // フィールド外枠
-  svg.appendChild(createSVGElement('rect', {
-    x: -FIELD.length / 2, y: -FIELD.width / 2,
-    width: FIELD.length, height: FIELD.width,
-    fill: 'none', stroke: COLORS.line, 'stroke-width': 30,
-  }));
-
-  // センターライン
-  svg.appendChild(createSVGElement('line', {
-    x1: 0, y1: -FIELD.width / 2, x2: 0, y2: FIELD.width / 2,
-    stroke: COLORS.line, 'stroke-width': 30,
-  }));
-
-  // センターサークル
-  svg.appendChild(createSVGElement('circle', {
-    cx: 0, cy: 0, r: FIELD.center_circle_radius,
-    fill: 'none', stroke: COLORS.line, 'stroke-width': 30,
-  }));
-
-  // センタードット
-  svg.appendChild(createSVGElement('circle', {
-    cx: 0, cy: 0, r: 60, fill: COLORS.line,
-  }));
-
-  // ペナルティエリア (両端)
-  for (const side of [-1, 1]) {
-    const px = side * (FIELD.length / 2 - FIELD.penalty_area_length);
-    svg.appendChild(createSVGElement('rect', {
-      x: side > 0 ? px : -FIELD.length / 2,
-      y: -FIELD.penalty_area_width / 2,
-      width: FIELD.penalty_area_length,
-      height: FIELD.penalty_area_width,
-      fill: 'none', stroke: COLORS.line, 'stroke-width': 30,
-    }));
-
-    // ゴール
-    svg.appendChild(createSVGElement('rect', {
-      x: side > 0 ? FIELD.length / 2 : -FIELD.length / 2 - FIELD.goal_depth,
-      y: -FIELD.goal_width / 2,
-      width: FIELD.goal_depth,
-      height: FIELD.goal_width,
-      fill: 'none', stroke: COLORS.goal, 'stroke-width': 40,
-    }));
+  // フィールド白線（共通幾何学データから生成）
+  for (const el of getFieldLineElements()) {
+    if (el.type === 'rect') {
+      svg.appendChild(createSVGElement('rect', {
+        x: el.x, y: el.y, width: el.w, height: el.h,
+        fill: 'none', stroke: COLORS.line, 'stroke-width': 30,
+      }));
+    } else if (el.type === 'line') {
+      svg.appendChild(createSVGElement('line', {
+        x1: el.x1, y1: el.y1, x2: el.x2, y2: el.y2,
+        stroke: COLORS.line, 'stroke-width': 30,
+      }));
+    } else if (el.type === 'circle') {
+      svg.appendChild(createSVGElement('circle', {
+        cx: el.cx, cy: el.cy, r: el.r,
+        fill: 'none', stroke: COLORS.line, 'stroke-width': 30,
+      }));
+    } else if (el.type === 'dot') {
+      svg.appendChild(createSVGElement('circle', {
+        cx: el.cx, cy: el.cy, r: el.r, fill: COLORS.line,
+      }));
+    } else if (el.type === 'goal') {
+      svg.appendChild(createSVGElement('rect', {
+        x: el.x, y: el.y, width: el.w, height: el.h,
+        fill: 'none', stroke: COLORS.goal, 'stroke-width': 40,
+      }));
+    }
   }
 
   // ロボット要素（yellow + blue、各16体分を事前生成）

@@ -95,54 +95,43 @@ class HeatmapRenderer {
   }
 
   _drawFieldTo(ctx, W, H) {
-    const { binsX, binsY } = this;
-
     // 緑背景
-    ctx.fillStyle = '#2d7a2d';
+    ctx.fillStyle = FIELD_COLORS.field;
     ctx.fillRect(0, 0, W, H);
 
-    // フィールド座標 → canvas 座標変換
-    // フィールド: x [-6000,6000] mm, y [-4500,4500] mm (binsX×100mm, binsY×100mm)
+    // mm座標 → canvas pixel 変換
+    // フィールド: x [-6000,6000] mm, y [-4500,4500] mm
     const margin = 0.05;  // キャンバスの5%をマージンに
-    const scaleX = W * (1 - 2 * margin) / binsX;
-    const scaleY = H * (1 - 2 * margin) / binsY;
+    const fieldW = W * (1 - 2 * margin);
+    const fieldH = H * (1 - 2 * margin);
     const offX = W * margin;
-    const offH = H * margin;
+    const offY = H * margin;
+    const { length: L, width: FW } = SSL_FIELD;
 
-    // ビン座標 → canvas pixel (Y 軸反転)
-    const toX = (binX) => offX + binX * scaleX;
-    const toY = (binY) => H - offH - (binY + 1) * scaleY;
+    const toX = (mmX) => offX + (mmX + L / 2) / L * fieldW;
+    const toY = (mmY) => offY + (FW / 2 - mmY) / FW * fieldH;
+    const scaleX = (mmW) => mmW / L * fieldW;
+    const scaleY = (mmH) => mmH / FW * fieldH;
 
     ctx.strokeStyle = 'rgba(255,255,255,0.5)';
     ctx.lineWidth = Math.max(1, W / 400);
 
-    // フィールド外枠
-    ctx.strokeRect(toX(0), toY(binsY - 1), binsX * scaleX, binsY * scaleY);
-
-    // センターライン (x=60 bin)
-    ctx.beginPath();
-    ctx.moveTo(toX(binsX / 2), toY(binsY - 1));
-    ctx.lineTo(toX(binsX / 2), toY(-1) + scaleY);
-    ctx.stroke();
-
-    // センターサークル (半径 500mm = 5 bin)
-    const cx = toX(binsX / 2);
-    const cy = toY(binsY / 2 - 0.5);
-    const rX = 5 * scaleX;
-    const rY = 5 * scaleY;
-    ctx.beginPath();
-    ctx.ellipse(cx, cy, rX, rY, 0, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // ペナルティエリア (両端): x 幅 18bin, y 幅 36bin
-    const paW = 18 * scaleX;
-    const paH = 36 * scaleY;
-    const paY = toY(binsY / 2 - 1 + 18);
-
-    // 左 (x=0〜18)
-    ctx.strokeRect(toX(0), paY, paW, paH);
-    // 右 (x=102〜120)
-    ctx.strokeRect(toX(binsX - 18), paY, paW, paH);
+    // フィールド白線（共通幾何学データから生成、ゴールとセンタードットは除外）
+    for (const el of getFieldLineElements()) {
+      if (el.type === 'rect') {
+        ctx.strokeRect(toX(el.x), toY(el.y + el.h), scaleX(el.w), scaleY(el.h));
+      } else if (el.type === 'line') {
+        ctx.beginPath();
+        ctx.moveTo(toX(el.x1), toY(el.y1));
+        ctx.lineTo(toX(el.x2), toY(el.y2));
+        ctx.stroke();
+      } else if (el.type === 'circle') {
+        ctx.beginPath();
+        ctx.ellipse(toX(el.cx), toY(el.cy), scaleX(el.r), scaleY(el.r), 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      // 'dot' と 'goal' はヒートマップ背景では描画しない
+    }
   }
 
   // -----------------------------------------------------------------------
