@@ -185,6 +185,17 @@ function eventCategory(typeVal) {
   document.getElementById('sb-blue-score').textContent   = String(meta.final_score.blue);
   document.getElementById('sb-duration').textContent     = formatSec(meta.duration_sec);
 
+  // ヒートマップタイトル & フィルタボタンにチーム名を反映
+  const heatYellowTitle = document.getElementById('heatmap-yellow-title');
+  const heatBlueTitle   = document.getElementById('heatmap-blue-title');
+  if (heatYellowTitle) heatYellowTitle.textContent = `${yName} チーム`;
+  if (heatBlueTitle)   heatBlueTitle.textContent   = `${bName} チーム`;
+
+  const filterBtnYellow = document.getElementById('filter-btn-yellow');
+  const filterBtnBlue   = document.getElementById('filter-btn-blue');
+  if (filterBtnYellow) filterBtnYellow.textContent = yName;
+  if (filterBtnBlue)   filterBtnBlue.textContent   = bName;
+
   if (meta.gdrive_url) {
     const dlLink = document.getElementById('log-download-link');
     dlLink.href = meta.gdrive_url;

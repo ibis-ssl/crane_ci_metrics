@@ -147,11 +147,11 @@
             <canvas id="heatmap-ball" class="an-heatmap-canvas"></canvas>
           </div>
           <div class="an-heatmap-card">
-            <h3 class="an-heatmap-title" style="color:var(--an-yellow)">Yellow チーム</h3>
+            <h3 id="heatmap-yellow-title" class="an-heatmap-title" style="color:var(--an-yellow)">Yellow チーム</h3>
             <canvas id="heatmap-yellow" class="an-heatmap-canvas"></canvas>
           </div>
           <div class="an-heatmap-card">
-            <h3 class="an-heatmap-title" style="color:var(--an-blue)">Blue チーム</h3>
+            <h3 id="heatmap-blue-title" class="an-heatmap-title" style="color:var(--an-blue)">Blue チーム</h3>
             <canvas id="heatmap-blue" class="an-heatmap-canvas"></canvas>
           </div>
         </div>
@@ -173,8 +173,8 @@
           <button class="an-filter-btn" data-filter="goal">ゴール</button>
           <button class="an-filter-btn" data-filter="foul">ファウル</button>
           <button class="an-filter-btn" data-filter="ball">ボール</button>
-          <button class="an-filter-btn" data-filter="yellow">Yellow</button>
-          <button class="an-filter-btn" data-filter="blue">Blue</button>
+          <button id="filter-btn-yellow" class="an-filter-btn" data-filter="yellow">Yellow</button>
+          <button id="filter-btn-blue"   class="an-filter-btn" data-filter="blue">Blue</button>
         </div>
         <div class="an-table-wrap">
           <table id="events-table" class="an-table">

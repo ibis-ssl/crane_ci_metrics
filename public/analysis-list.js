@@ -10,9 +10,9 @@ function formatSec(sec) {
   return `${m}:${ss}`;
 }
 
-function resultBadge(score) {
-  if (score.yellow > score.blue)  return { cls: 'yellow-win', text: 'Yellow 勝利' };
-  if (score.blue   > score.yellow) return { cls: 'blue-win',   text: 'Blue 勝利' };
+function resultBadge(score, yName, bName) {
+  if (score.yellow > score.blue)   return { cls: 'yellow-win', text: `${yName} 勝利` };
+  if (score.blue   > score.yellow) return { cls: 'blue-win',   text: `${bName} 勝利` };
   return { cls: 'draw', text: '引き分け' };
 }
 
@@ -21,7 +21,7 @@ function buildMatchCard(meta) {
   const yName = teams?.yellow || 'Yellow';
   const bName = teams?.blue   || 'Blue';
   const score = final_score || { yellow: 0, blue: 0 };
-  const result = resultBadge(score);
+  const result = resultBadge(score, yName, bName);
 
   const yWinner = result.cls === 'yellow-win';
   const bWinner = result.cls === 'blue-win';
