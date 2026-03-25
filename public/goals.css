@@ -94,12 +94,12 @@
   letter-spacing: 0.5px;
 }
 
-.goal-card-badge.ibis {
+.goal-card-badge.yellow {
   background-color: rgba(9, 105, 218, 0.12);
   color: #0969da;
 }
 
-.goal-card-badge.tigers {
+.goal-card-badge.blue {
   background-color: rgba(207, 34, 46, 0.12);
   color: #cf222e;
 }

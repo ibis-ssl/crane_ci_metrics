@@ -253,47 +253,7 @@ def extract_goal_scenes(log_gz_bytes: bytes) -> list[dict]:
             except Exception:
                 pass
 
-    # スコア変化点（ゴール）を検出
-    possible_goals = _collect_possible_goals(referee_snapshots)
-    scenes = []
-    prev_yellow_score = 0
-    prev_blue_score = 0
-    goal_index = 0
-
-    for goal_time_ns, ref in referee_snapshots:
-        yellow_score = ref.yellow.score
-        blue_score = ref.blue.score
-
-        scored_by = None
-        team_int = None
-        if yellow_score > prev_yellow_score:
-            scored_by = "ibis"
-            team_int = _TEAM_YELLOW
-        elif blue_score > prev_blue_score:
-            scored_by = "tigers"
-            team_int = _TEAM_BLUE
-
-        if scored_by:
-            scene_end_ns = _find_possible_goal_time(possible_goals, goal_time_ns, team_int)
-            start_ns = scene_end_ns - int(SCENE_DURATION_SEC * 1e9)
-            scene_frames_raw = [f for f in position_frames if start_ns <= f["t_ns"] <= scene_end_ns]
-
-            if scene_frames_raw:
-                frames = _downsample_frames(scene_frames_raw, scene_end_ns, SCENE_DURATION_SEC, OUTPUT_FPS)
-                scenes.append({
-                    "goal_index": goal_index,
-                    "scored_by": scored_by,
-                    "score_after": {"ibis": yellow_score, "tigers": blue_score},
-                    "duration_sec": SCENE_DURATION_SEC,
-                    "fps": OUTPUT_FPS,
-                    "frames": frames,
-                })
-                goal_index += 1
-
-        prev_yellow_score = yellow_score
-        prev_blue_score = blue_score
-
-    return scenes
+    return _goal_scenes_from_parsed(position_frames, referee_snapshots)
 
 
 # ============================================================

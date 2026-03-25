@@ -17,6 +17,7 @@ class GoalScenePlayer {
     this.elapsed = 0;
     this._rafId = null;
     this._boundLoop = this._loop.bind(this);
+    this._totalTimeStr = scene.frames[scene.frames.length - 1].t.toFixed(1);
   }
 
   get totalFrames() { return this.frames.length; }
@@ -66,9 +67,7 @@ class GoalScenePlayer {
   _render() {
     const frame = this.frames[this.currentFrame];
     updateFrame(frame, this.robotElements, this.ballEl);
-    const t = frame.t.toFixed(1);
-    const total = this.frames[this.totalFrames - 1].t.toFixed(1);
-    this.timeDisplay.textContent = `${t}s / ${total}s`;
+    this.timeDisplay.textContent = `${frame.t.toFixed(1)}s / ${this._totalTimeStr}s`;
     this.seekbar.value = this.currentFrame;
   }
 }
@@ -85,11 +84,11 @@ function buildSceneCard(scene, teamNames) {
   card.className = 'goal-scene-card';
   card.dataset.team = scene.scored_by;
 
-  const isYellow   = scene.scored_by === 'yellow' || scene.scored_by === 'ibis';
+  const isYellow   = scene.scored_by === 'yellow';
   const teamLabel  = isYellow ? `${yLabel} ゴール` : `${bLabel} ゴール`;
-  const badgeClass = isYellow ? 'ibis' : 'tigers';
-  const yScore = scene.score_after.yellow ?? scene.score_after.ibis   ?? 0;
-  const bScore = scene.score_after.blue   ?? scene.score_after.tigers ?? 0;
+  const badgeClass = isYellow ? 'yellow' : 'blue';
+  const yScore = scene.score_after.yellow ?? 0;
+  const bScore = scene.score_after.blue   ?? 0;
 
   // カードヘッダー
   const header = document.createElement('div');
@@ -120,8 +119,8 @@ function buildSceneCard(scene, teamNames) {
   const legend = document.createElement('div');
   legend.className = 'goal-legend';
   legend.innerHTML = `
-    <span class="goal-legend-item"><span class="goal-legend-dot" style="background:${COLORS.ibis}"></span>${yLabel}</span>
-    <span class="goal-legend-item"><span class="goal-legend-dot" style="background:${COLORS.tigers}"></span>${bLabel}</span>
+    <span class="goal-legend-item"><span class="goal-legend-dot" style="background:${COLORS.yellow_team}"></span>${yLabel}</span>
+    <span class="goal-legend-item"><span class="goal-legend-dot" style="background:${COLORS.blue_team}"></span>${bLabel}</span>
     <span class="goal-legend-item"><span class="goal-legend-dot" style="background:${COLORS.ball}"></span>ボール</span>
   `;
   card.appendChild(legend);
@@ -222,8 +221,9 @@ function renderScenes(filter) {
 }
 
 // goals.html 専用ロジック: 他ページで goals.js を流用する場合はスキップ
-if (document.getElementById('filter-buttons')) {
-  document.getElementById('filter-buttons').addEventListener('click', (e) => {
+const filterButtons = document.getElementById('filter-buttons');
+if (filterButtons) {
+  filterButtons.addEventListener('click', (e) => {
     const btn = e.target.closest('.goal-filter-btn');
     if (!btn) return;
     document.querySelectorAll('.goal-filter-btn').forEach(b => b.classList.remove('active'));

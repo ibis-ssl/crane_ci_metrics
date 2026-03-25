@@ -16,9 +16,6 @@ const FIELD = {
 const COLORS = {
   yellow_team: '#FDD663',  // SSL yellow チーム
   blue_team:   '#5B9BF5',  // SSL blue チーム
-  // goals.js との後方互換エイリアス
-  ibis:   '#FDD663',
-  tigers: '#5B9BF5',
   ball: '#ff8c00',
   field: '#2d7a2d',
   line: '#ffffff',
