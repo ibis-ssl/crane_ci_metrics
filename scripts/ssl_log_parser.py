@@ -501,6 +501,9 @@ _MOTION_ACCEL_MIN = -8.0         # 加速度ヒストグラム最小値 (m/s²)
 _MOTION_ACCEL_MAX = 8.0          # 加速度ヒストグラム最大値 (m/s²)
 _MOTION_ACCEL_BIN = 0.25         # 加速度ビン幅 (m/s²)
 
+# リプレイフレームから除外するロボットフィールド (モーション解析専用・JSONサイズ削減)
+_REPLAY_FRAME_EXCLUDE = frozenset({"vel_x", "vel_y", "vel_ms", "theta_rad"})
+
 
 def _compute_motion_analysis(frames: list[dict]) -> dict:
     """TIGERs Mannheim ETDP 2026 §3 の手法でロボット動作特性を分析する。
@@ -841,11 +844,11 @@ def _downsample_replay_frames(frames: list[dict], start_ns: int, fps: int) -> li
             "t_sec": round((t_ns - start_ns) / 1e9, 2),
             "ball": f["ball"],
             "robots_yellow": [
-                {k: v for k, v in r.items() if k not in ("vel_x", "vel_y", "vel_ms", "theta_rad")}
+                {k: v for k, v in r.items() if k not in _REPLAY_FRAME_EXCLUDE}
                 for r in f["robots_yellow"]
             ],
             "robots_blue": [
-                {k: v for k, v in r.items() if k not in ("vel_x", "vel_y", "vel_ms", "theta_rad")}
+                {k: v for k, v in r.items() if k not in _REPLAY_FRAME_EXCLUDE}
                 for r in f["robots_blue"]
             ],
         })

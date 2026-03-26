@@ -368,15 +368,19 @@ function renderMotionAnalysis(motion, yName, bName) {
     }).render();
   }
 
-  const yHistTitleEl = document.getElementById('speed-hist-yellow-title');
-  const bHistTitleEl = document.getElementById('speed-hist-blue-title');
-  if (yHistTitleEl) yHistTitleEl.textContent = `${yName}`;
-  if (bHistTitleEl) bHistTitleEl.textContent = `${bName}`;
+  function setTeamTitles(yId, bId) {
+    const yEl = document.getElementById(yId);
+    const bEl = document.getElementById(bId);
+    if (yEl) yEl.textContent = yName;
+    if (bEl) bEl.textContent = bName;
+  }
+
+  setTeamTitles('speed-hist-yellow-title', 'speed-hist-blue-title');
   renderSpeedHist('speed-hist-yellow', motion.yellow.speed_histogram, yName, '#FDD663');
   renderSpeedHist('speed-hist-blue',   motion.blue.speed_histogram,   bName, '#5B9BF5');
 
   // 速度-加速度ヒートマップ (X=加速度, Y=速度)
-  function renderSAHeatmap(canvasId, teamMotion, teamName, colorScheme) {
+  function renderSAHeatmap(canvasId, teamMotion, colorScheme) {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return;
     const hm = teamMotion.speed_accel_heatmap;
@@ -394,13 +398,10 @@ function renderMotionAnalysis(motion, yName, bName) {
     });
   }
 
-  const saTitleY = document.getElementById('sa-heatmap-yellow-title');
-  const saTitleB = document.getElementById('sa-heatmap-blue-title');
-  if (saTitleY) saTitleY.textContent = yName;
-  if (saTitleB) saTitleB.textContent = bName;
+  setTeamTitles('sa-heatmap-yellow-title', 'sa-heatmap-blue-title');
 
   // 加速方向ヒートマップ (ロボットローカル座標)
-  function renderDAHeatmap(canvasId, teamMotion, teamName, colorScheme) {
+  function renderDAHeatmap(canvasId, teamMotion, colorScheme) {
     const canvas = document.getElementById(canvasId);
     if (!canvas || !teamMotion.directional_accel) return;
     const da = teamMotion.directional_accel;
@@ -416,17 +417,14 @@ function renderMotionAnalysis(motion, yName, bName) {
     });
   }
 
-  const daTitleY = document.getElementById('da-heatmap-yellow-title');
-  const daTitleB = document.getElementById('da-heatmap-blue-title');
-  if (daTitleY) daTitleY.textContent = yName;
-  if (daTitleB) daTitleB.textContent = bName;
+  setTeamTitles('da-heatmap-yellow-title', 'da-heatmap-blue-title');
 
   // ResizeObserver でサイズ確定後に Canvas を描画
   function drawAllCanvases() {
-    renderSAHeatmap('sa-heatmap-yellow', motion.yellow, yName, 'yellow');
-    renderSAHeatmap('sa-heatmap-blue',   motion.blue,   bName, 'blue');
-    renderDAHeatmap('da-heatmap-yellow', motion.yellow, yName, 'yellow');
-    renderDAHeatmap('da-heatmap-blue',   motion.blue,   bName, 'blue');
+    renderSAHeatmap('sa-heatmap-yellow', motion.yellow, 'yellow');
+    renderSAHeatmap('sa-heatmap-blue',   motion.blue,   'blue');
+    renderDAHeatmap('da-heatmap-yellow', motion.yellow, 'yellow');
+    renderDAHeatmap('da-heatmap-blue',   motion.blue,   'blue');
   }
 
   if (typeof ResizeObserver !== 'undefined') {
