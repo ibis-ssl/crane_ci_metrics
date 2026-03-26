@@ -82,20 +82,40 @@
           <a href="https://ssl.robocup.org/wp-content/uploads/2026/03/2026_ETDP_TIGERs-Mannheim.pdf" target="_blank" rel="noopener" style="color:var(--an-on-variant)">TIGERs Mannheim ETDP 2026 §3</a> の手法に基づく。
         </p>
         <div class="an-stats-team-grid" id="motion-limits-grid"></div>
-        <div class="an-motion-chart-row">
-          <div>
-            <p class="an-section-sublabel">速度分布 (チーム合計)</p>
-            <div id="speed-histogram-chart" class="an-chart-container"></div>
-          </div>
-        </div>
+
+        <p class="an-section-sublabel an-motion-section-label">速度分布</p>
         <div class="an-motion-heatmap-grid">
           <div>
-            <p class="an-section-sublabel" id="motion-heatmap-yellow-title">Yellow — 速度 vs 加速度</p>
-            <div id="speed-accel-heatmap-yellow" class="an-chart-container an-motion-heatmap"></div>
+            <p class="an-section-sublabel" id="speed-hist-yellow-title"></p>
+            <div id="speed-hist-yellow" class="an-chart-container an-speed-hist"></div>
           </div>
           <div>
-            <p class="an-section-sublabel" id="motion-heatmap-blue-title">Blue — 速度 vs 加速度</p>
-            <div id="speed-accel-heatmap-blue" class="an-chart-container an-motion-heatmap"></div>
+            <p class="an-section-sublabel" id="speed-hist-blue-title"></p>
+            <div id="speed-hist-blue" class="an-chart-container an-speed-hist"></div>
+          </div>
+        </div>
+
+        <p class="an-section-sublabel an-motion-section-label">加速度 vs 速度 (X軸: 加速度 m/s²、Y軸: 速度 m/s)</p>
+        <div class="an-motion-heatmap-grid">
+          <div>
+            <p class="an-section-sublabel" id="sa-heatmap-yellow-title"></p>
+            <canvas id="sa-heatmap-yellow" class="an-motion-canvas"></canvas>
+          </div>
+          <div>
+            <p class="an-section-sublabel" id="sa-heatmap-blue-title"></p>
+            <canvas id="sa-heatmap-blue" class="an-motion-canvas"></canvas>
+          </div>
+        </div>
+
+        <p class="an-section-sublabel an-motion-section-label">加速方向分布 — ロボット正面基準 (X軸: 前後、Y軸: 左右)</p>
+        <div class="an-motion-heatmap-grid">
+          <div>
+            <p class="an-section-sublabel" id="da-heatmap-yellow-title"></p>
+            <canvas id="da-heatmap-yellow" class="an-motion-canvas an-motion-canvas-sq"></canvas>
+          </div>
+          <div>
+            <p class="an-section-sublabel" id="da-heatmap-blue-title"></p>
+            <canvas id="da-heatmap-blue" class="an-motion-canvas an-motion-canvas-sq"></canvas>
           </div>
         </div>
       </section>

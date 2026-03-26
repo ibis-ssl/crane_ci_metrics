@@ -164,6 +164,7 @@ def _tracker_to_frame(timestamp_ns: int, wrapper) -> dict | None:
             "x": int(r.pos.x * 1000),
             "y": int(r.pos.y * 1000),
             "theta": round(r.orientation, 1),
+            "theta_rad": r.orientation,
         }
         if r.HasField("vel"):
             entry["vel_ms"] = math.hypot(r.vel.x, r.vel.y)
@@ -516,6 +517,7 @@ def _compute_motion_analysis(frames: list[dict]) -> dict:
         return {
             "speed_hist": [0] * _SPEED_BINS,
             "sa_grid": {},
+            "da_grid": {},
             "speed_samples": [],
             "accel_samples": [],
             "decel_samples": [],
@@ -543,24 +545,27 @@ def _compute_motion_analysis(frames: list[dict]) -> dict:
                 # 加速度推定: 速度ベクトルの差分をフレームオフセットで計算
                 vx = r.get("vel_x")
                 vy = r.get("vel_y")
+                theta = r.get("theta_rad", r.get("theta", 0.0))
                 if vx is None or vy is None:
                     continue
                 key = (team_key, r["id"])
                 if key not in robot_history:
                     robot_history[key] = deque(maxlen=_MOTION_FRAME_OFFSET + 1)
                 hist = robot_history[key]
-                hist.append((t_ns, vx, vy, spd))
+                hist.append((t_ns, vx, vy, spd, theta))
 
                 if len(hist) < _MOTION_FRAME_OFFSET + 1:
                     continue
 
-                t_old, vx_old, vy_old, spd_old = hist[0]
+                t_old, vx_old, vy_old, spd_old, theta_old = hist[0]
                 dt_ns = t_ns - t_old
                 if not (_STATS_MIN_DT_NS <= dt_ns <= _STATS_MAX_DT_NS * 10):
                     continue
                 dt_sec = dt_ns / 1e9
 
-                acc_mag = math.hypot((vx - vx_old) / dt_sec, (vy - vy_old) / dt_sec)
+                ax = (vx - vx_old) / dt_sec
+                ay = (vy - vy_old) / dt_sec
+                acc_mag = math.hypot(ax, ay)
                 acc_signed = acc_mag if spd >= spd_old else -acc_mag
 
                 if acc_signed > 0:
@@ -569,16 +574,25 @@ def _compute_motion_analysis(frames: list[dict]) -> dict:
                     td["decel_samples"].append(-acc_signed)
 
                 mid_spd = (spd + spd_old) / 2.0
-                if mid_spd < _MOTION_MIN_SPEED_MS:
-                    continue
-                sbin = min(int(mid_spd / _MOTION_SPEED_BIN), _SPEED_BINS - 1)
-                if _MOTION_ACCEL_MIN <= acc_signed <= _MOTION_ACCEL_MAX:
-                    abin = min(
-                        int((acc_signed - _MOTION_ACCEL_MIN) / _MOTION_ACCEL_BIN),
-                        _ACCEL_BINS - 1,
-                    )
-                    sa_key = (sbin, abin)
-                    td["sa_grid"][sa_key] = td["sa_grid"].get(sa_key, 0) + 1
+                if mid_spd >= _MOTION_MIN_SPEED_MS:
+                    sbin = min(int(mid_spd / _MOTION_SPEED_BIN), _SPEED_BINS - 1)
+                    if _MOTION_ACCEL_MIN <= acc_signed <= _MOTION_ACCEL_MAX:
+                        abin = min(
+                            int((acc_signed - _MOTION_ACCEL_MIN) / _MOTION_ACCEL_BIN),
+                            _ACCEL_BINS - 1,
+                        )
+                        td["sa_grid"][(sbin, abin)] = td["sa_grid"].get((sbin, abin), 0) + 1
+
+                # ロボットローカル座標での加速方向 (ロボット正面=X軸)
+                theta_mid = (theta + theta_old) / 2.0
+                cos_t, sin_t = math.cos(theta_mid), math.sin(theta_mid)
+                ax_local =  ax * cos_t + ay * sin_t   # 前後方向 (正=前)
+                ay_local = -ax * sin_t + ay * cos_t   # 左右方向 (正=左)
+                if _MOTION_ACCEL_MIN <= ax_local <= _MOTION_ACCEL_MAX and \
+                   _MOTION_ACCEL_MIN <= ay_local <= _MOTION_ACCEL_MAX:
+                    axb = min(int((ax_local - _MOTION_ACCEL_MIN) / _MOTION_ACCEL_BIN), _ACCEL_BINS - 1)
+                    ayb = min(int((ay_local - _MOTION_ACCEL_MIN) / _MOTION_ACCEL_BIN), _ACCEL_BINS - 1)
+                    td["da_grid"][(axb, ayb)] = td["da_grid"].get((axb, ayb), 0) + 1
 
     def _build_team_result(td: dict) -> dict:
         n_speed = len(td["speed_samples"])
@@ -602,6 +616,12 @@ def _compute_motion_analysis(frames: list[dict]) -> dict:
                 "accel_min": _MOTION_ACCEL_MIN,
                 "accel_max": _MOTION_ACCEL_MAX,
                 "data": [[sb, ab, cnt] for (sb, ab), cnt in td["sa_grid"].items()],
+            },
+            "directional_accel": {
+                "bin_width": _MOTION_ACCEL_BIN,
+                "accel_min": _MOTION_ACCEL_MIN,
+                "accel_max": _MOTION_ACCEL_MAX,
+                "data": [[axb, ayb, cnt] for (axb, ayb), cnt in td["da_grid"].items()],
             },
             "limits": limits,
         }
@@ -821,11 +841,11 @@ def _downsample_replay_frames(frames: list[dict], start_ns: int, fps: int) -> li
             "t_sec": round((t_ns - start_ns) / 1e9, 2),
             "ball": f["ball"],
             "robots_yellow": [
-                {k: v for k, v in r.items() if k not in ("vel_x", "vel_y", "vel_ms")}
+                {k: v for k, v in r.items() if k not in ("vel_x", "vel_y", "vel_ms", "theta_rad")}
                 for r in f["robots_yellow"]
             ],
             "robots_blue": [
-                {k: v for k, v in r.items() if k not in ("vel_x", "vel_y", "vel_ms")}
+                {k: v for k, v in r.items() if k not in ("vel_x", "vel_y", "vel_ms", "theta_rad")}
                 for r in f["robots_blue"]
             ],
         })

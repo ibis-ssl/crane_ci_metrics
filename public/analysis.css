@@ -750,10 +750,7 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
-  margin-top: 16px;
-}
-.an-motion-chart-row {
-  margin-top: 16px;
+  margin-top: 8px;
 }
 .an-section-sublabel {
   margin: 0 0 6px;
@@ -762,8 +759,21 @@
   color: var(--an-on-variant);
   letter-spacing: 0.02em;
 }
-.an-motion-heatmap {
-  height: 320px !important;
+.an-motion-section-label {
+  margin-top: 20px;
+  font-size: 0.9rem;
+  color: var(--an-on-surface);
+}
+.an-speed-hist {
+  height: 200px !important;
+}
+.an-motion-canvas {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+}
+.an-motion-canvas-sq {
+  aspect-ratio: 1;
 }
 @media (max-width: 700px) {
   .an-motion-heatmap-grid {

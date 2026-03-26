@@ -135,6 +135,180 @@ function renderMatchStats(stats, yName, bName) {
 }
 
 // ============================================================
+// Canvas ベース 2D ヒートマップ描画ユーティリティ
+// ============================================================
+
+/**
+ * ヒートマップ用カラー計算 (HeatmapRenderer._color 相当)
+ * @param {number} norm 0-1
+ * @param {'yellow'|'blue'|'hot'} scheme
+ */
+function _hm2dColor(norm, scheme) {
+  if (norm <= 0) return null;
+  const alpha = Math.min(0.95, 0.15 + norm * 0.80);
+  let r, g, b;
+  switch (scheme) {
+    case 'yellow':
+      r = (60  + norm * 195) | 0;
+      g = (50  + norm * 200) | 0;
+      b = (0   + norm * 60)  | 0;
+      break;
+    case 'blue':
+      r = (0   + norm * 100) | 0;
+      g = (20  + norm * 150) | 0;
+      b = (80  + norm * 175) | 0;
+      break;
+    default:
+      r = Math.min(255, (norm * 3 * 255)) | 0;
+      g = Math.min(255, Math.max(0, (norm * 3 - 1) * 255)) | 0;
+      b = Math.min(255, Math.max(0, (norm * 3 - 2) * 255)) | 0;
+  }
+  return `rgba(${r},${g},${b},${alpha.toFixed(2)})`;
+}
+
+/**
+ * Canvas に汎用 2D ヒートマップを描画する。
+ * @param {HTMLCanvasElement} canvas
+ * @param {{
+ *   data: [number,number,number][],  // [[xBin,yBin,count],...]
+ *   binsX: number, binsY: number,
+ *   xMin: number, xMax: number, yMin: number, yMax: number,
+ *   xLabel: string, yLabel: string,
+ *   colorScheme: string,
+ *   overlayFn?: function,
+ * }} opts
+ */
+function drawHeatmap2D(canvas, { data, binsX, binsY, xMin, xMax, yMin, yMax,
+                                  xLabel = '', yLabel = '', colorScheme = 'hot',
+                                  overlayFn = null }) {
+  if (!canvas) return;
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.offsetWidth  || 300;
+  const H = canvas.offsetHeight || (W * 3 / 4);
+  canvas.width  = W * dpr;
+  canvas.height = H * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  const ML = 44, MR = 8, MT = 8, MB = 32;
+  const plotW = W - ML - MR;
+  const plotH = H - MT - MB;
+
+  // 背景
+  ctx.fillStyle = '#12121f';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#0b0b18';
+  ctx.fillRect(ML, MT, plotW, plotH);
+
+  // セル描画
+  if (data && data.length > 0) {
+    let maxCount = 1;
+    for (const [,, c] of data) if (c > maxCount) maxCount = c;
+    const logMax = Math.log(maxCount + 1);
+    const cellW = plotW / binsX;
+    const cellH = plotH / binsY;
+    for (const [xb, yb, count] of data) {
+      const norm = Math.log(count + 1) / logMax;
+      const color = _hm2dColor(norm, colorScheme);
+      if (!color) continue;
+      ctx.fillStyle = color;
+      ctx.fillRect(ML + xb * cellW, MT + plotH - (yb + 1) * cellH, cellW, cellH);
+    }
+  }
+
+  // ゼロライン
+  ctx.setLineDash([4, 4]);
+  ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+  ctx.lineWidth = 1;
+  if (xMin < 0 && xMax > 0) {
+    const zx = ML + (-xMin) / (xMax - xMin) * plotW;
+    ctx.beginPath(); ctx.moveTo(zx, MT); ctx.lineTo(zx, MT + plotH); ctx.stroke();
+  }
+  if (yMin < 0 && yMax > 0) {
+    const zy = MT + plotH - (-yMin) / (yMax - yMin) * plotH;
+    ctx.beginPath(); ctx.moveTo(ML, zy); ctx.lineTo(ML + plotW, zy); ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  // 枠線
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(ML, MT, plotW, plotH);
+
+  // フォント設定
+  ctx.fillStyle = 'rgba(255,255,255,0.65)';
+  ctx.font = '10px Inter, sans-serif';
+
+  // X 軸目盛り
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  const xTickCount = 5;
+  for (let i = 0; i <= xTickCount; i++) {
+    const v = xMin + (xMax - xMin) * i / xTickCount;
+    const px = ML + plotW * i / xTickCount;
+    ctx.fillText(v.toFixed(1), px, MT + plotH + 4);
+  }
+
+  // Y 軸目盛り
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  const yTickCount = 5;
+  for (let i = 0; i <= yTickCount; i++) {
+    const v = yMin + (yMax - yMin) * i / yTickCount;
+    const py = MT + plotH - plotH * i / yTickCount;
+    ctx.fillText(v.toFixed(1), ML - 4, py);
+  }
+
+  // 軸ラベル
+  ctx.fillStyle = 'rgba(255,255,255,0.8)';
+  ctx.font = '11px Inter, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText(xLabel, ML + plotW / 2, H - 1);
+
+  ctx.save();
+  ctx.translate(11, MT + plotH / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.textBaseline = 'top';
+  ctx.fillText(yLabel, 0, 0);
+  ctx.restore();
+
+  // オーバーレイ (ロボット輪郭など)
+  if (overlayFn) overlayFn(ctx, ML, MT, plotW, plotH, xMin, xMax, yMin, yMax);
+}
+
+/** 加速方向ヒートマップ用オーバーレイ: 原点にロボット輪郭を描画 */
+function _robotDirectionOverlay(ctx, ML, MT, plotW, plotH, xMin, xMax, yMin, yMax) {
+  const toX = v => ML + (v - xMin) / (xMax - xMin) * plotW;
+  const toY = v => MT + plotH - (v - yMin) / (yMax - yMin) * plotH;
+  const cx = toX(0), cy = toY(0);
+  const r = Math.min(plotW, plotH) * 0.055;
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+  ctx.fillStyle   = 'rgba(255,255,255,0.75)';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([]);
+
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // 前方向 (+X = 右)
+  const arrowTip = cx + r * 1.6;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(arrowTip, cy);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(arrowTip, cy);
+  ctx.lineTo(arrowTip - r * 0.4, cy - r * 0.3);
+  ctx.lineTo(arrowTip - r * 0.4, cy + r * 0.3);
+  ctx.closePath();
+  ctx.fill();
+}
+
+// ============================================================
 // ロボット動作特性分析レンダリング (TIGERs ETDP 2026 §3)
 // ============================================================
 function renderMotionAnalysis(motion, yName, bName) {
@@ -174,85 +348,94 @@ function renderMotionAnalysis(motion, yName, bName) {
     }));
   }
 
-  // 速度ヒストグラム
-  const yhist = motion.yellow.speed_histogram;
-  const bhist = motion.blue.speed_histogram;
-  const speedLabels = yhist.bins.map((_, i) => ((i + 0.5) * yhist.bin_width).toFixed(1));
-  const histEl = document.getElementById('speed-histogram-chart');
-  if (histEl) {
-    new ApexCharts(histEl, {
-      chart: { type: 'bar', height: 240, background: 'transparent', toolbar: { show: false },
-               animations: { enabled: false } },
-      theme: { mode: 'dark' },
-      series: [
-        { name: yName, data: yhist.bins, color: '#FDD663' },
-        { name: bName, data: bhist.bins, color: '#5B9BF5' },
-      ],
-      xaxis: {
-        categories: speedLabels,
-        title: { text: '速度 (m/s)' },
-        tickAmount: 10,
-        labels: { rotate: 0 },
-      },
-      yaxis: { title: { text: '頻度' }, labels: { formatter: v => v.toLocaleString() } },
-      plotOptions: { bar: { columnWidth: '90%' } },
-      dataLabels: { enabled: false },
-      grid: { borderColor: 'rgba(255,255,255,0.08)' },
-      legend: { position: 'top' },
-    }).render();
-  }
-
-  // 速度-加速度 2Dヒートマップ (チーム別)
-  function renderSAHeatmap(containerId, teamMotion, color) {
+  // 速度ヒストグラム (チーム別)
+  function renderSpeedHist(containerId, hist, teamName, color) {
     const el = document.getElementById(containerId);
     if (!el) return;
-    const hm = teamMotion.speed_accel_heatmap;
-    const speedBins = Math.round(hm.speed_max / hm.speed_bin_width);
-    const accelBins = Math.round((hm.accel_max - hm.accel_min) / hm.accel_bin_width);
-
-    // data: [[speed_bin, accel_bin, count], ...]
-    // ApexCharts heatmap: series = accel行ごとに speed方向の配列
-    const grid = Array.from({ length: accelBins }, () => new Array(speedBins).fill(0));
-    for (const [sb, ab, cnt] of hm.data) {
-      if (sb < speedBins && ab < accelBins) grid[ab][sb] = cnt;
-    }
-
-    // 系列: Y軸 = 加速度ビン (下→上 = 減速→加速)
-    const series = grid.map((row, ab) => {
-      const accelVal = (hm.accel_min + (ab + 0.5) * hm.accel_bin_width).toFixed(2);
-      return { name: `${accelVal}`, data: row.map((v, sb) => ({ x: ((sb + 0.5) * hm.speed_bin_width).toFixed(1), y: v })) };
-    }).reverse(); // 上が加速, 下が減速
-
+    const labels = hist.bins.map((_, i) => ((i + 0.5) * hist.bin_width).toFixed(1));
     new ApexCharts(el, {
-      chart: { type: 'heatmap', height: 320, background: 'transparent', toolbar: { show: false },
+      chart: { type: 'bar', height: 200, background: 'transparent', toolbar: { show: false },
                animations: { enabled: false } },
       theme: { mode: 'dark' },
-      series,
+      series: [{ name: teamName, data: hist.bins, color }],
+      xaxis: { categories: labels, title: { text: '速度 (m/s)' }, tickAmount: 10,
+               labels: { rotate: 0 } },
+      yaxis: { title: { text: '頻度' }, labels: { formatter: v => v.toLocaleString() } },
+      plotOptions: { bar: { columnWidth: '95%' } },
       dataLabels: { enabled: false },
-      xaxis: { title: { text: '速度 (m/s)' }, tickAmount: 10 },
-      yaxis: { title: { text: '加速度 (m/s²)' } },
-      plotOptions: {
-        heatmap: {
-          colorScale: {
-            ranges: [
-              { from: 0, to: 0, color: '#1a1a2e', name: '0' },
-            ],
-          },
-        },
-      },
-      colors: [color],
       grid: { borderColor: 'rgba(255,255,255,0.08)' },
-      tooltip: { y: { formatter: v => v.toLocaleString() } },
+      legend: { show: false },
     }).render();
   }
 
-  const yTitleEl = document.getElementById('motion-heatmap-yellow-title');
-  const bTitleEl = document.getElementById('motion-heatmap-blue-title');
-  if (yTitleEl) yTitleEl.textContent = `${yName} — 速度 vs 加速度`;
-  if (bTitleEl) bTitleEl.textContent = `${bName} — 速度 vs 加速度`;
+  const yHistTitleEl = document.getElementById('speed-hist-yellow-title');
+  const bHistTitleEl = document.getElementById('speed-hist-blue-title');
+  if (yHistTitleEl) yHistTitleEl.textContent = `${yName}`;
+  if (bHistTitleEl) bHistTitleEl.textContent = `${bName}`;
+  renderSpeedHist('speed-hist-yellow', motion.yellow.speed_histogram, yName, '#FDD663');
+  renderSpeedHist('speed-hist-blue',   motion.blue.speed_histogram,   bName, '#5B9BF5');
 
-  renderSAHeatmap('speed-accel-heatmap-yellow', motion.yellow, '#FDD663');
-  renderSAHeatmap('speed-accel-heatmap-blue',   motion.blue,   '#5B9BF5');
+  // 速度-加速度ヒートマップ (X=加速度, Y=速度)
+  function renderSAHeatmap(canvasId, teamMotion, teamName, colorScheme) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const hm = teamMotion.speed_accel_heatmap;
+    const accelBins = Math.round((hm.accel_max - hm.accel_min) / hm.accel_bin_width);
+    const speedBins = Math.round(hm.speed_max / hm.speed_bin_width);
+    // データを軸入れ替え: [[speed_bin, accel_bin, cnt]] → [[accel_bin, speed_bin, cnt]]
+    const swapped = hm.data.map(([sb, ab, cnt]) => [ab, sb, cnt]);
+    drawHeatmap2D(canvas, {
+      data: swapped,
+      binsX: accelBins, binsY: speedBins,
+      xMin: hm.accel_min, xMax: hm.accel_max,
+      yMin: 0,            yMax: hm.speed_max,
+      xLabel: '加速度 (m/s²)', yLabel: '速度 (m/s)',
+      colorScheme,
+    });
+  }
+
+  const saTitleY = document.getElementById('sa-heatmap-yellow-title');
+  const saTitleB = document.getElementById('sa-heatmap-blue-title');
+  if (saTitleY) saTitleY.textContent = yName;
+  if (saTitleB) saTitleB.textContent = bName;
+
+  // 加速方向ヒートマップ (ロボットローカル座標)
+  function renderDAHeatmap(canvasId, teamMotion, teamName, colorScheme) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas || !teamMotion.directional_accel) return;
+    const da = teamMotion.directional_accel;
+    const bins = Math.round((da.accel_max - da.accel_min) / da.bin_width);
+    drawHeatmap2D(canvas, {
+      data: da.data,
+      binsX: bins, binsY: bins,
+      xMin: da.accel_min, xMax: da.accel_max,
+      yMin: da.accel_min, yMax: da.accel_max,
+      xLabel: '前後方向加速度 (m/s²)', yLabel: '左右方向加速度 (m/s²)',
+      colorScheme,
+      overlayFn: _robotDirectionOverlay,
+    });
+  }
+
+  const daTitleY = document.getElementById('da-heatmap-yellow-title');
+  const daTitleB = document.getElementById('da-heatmap-blue-title');
+  if (daTitleY) daTitleY.textContent = yName;
+  if (daTitleB) daTitleB.textContent = bName;
+
+  // ResizeObserver でサイズ確定後に Canvas を描画
+  function drawAllCanvases() {
+    renderSAHeatmap('sa-heatmap-yellow', motion.yellow, yName, 'yellow');
+    renderSAHeatmap('sa-heatmap-blue',   motion.blue,   bName, 'blue');
+    renderDAHeatmap('da-heatmap-yellow', motion.yellow, yName, 'yellow');
+    renderDAHeatmap('da-heatmap-blue',   motion.blue,   bName, 'blue');
+  }
+
+  if (typeof ResizeObserver !== 'undefined') {
+    const ro = new ResizeObserver(drawAllCanvases);
+    ['sa-heatmap-yellow','sa-heatmap-blue','da-heatmap-yellow','da-heatmap-blue']
+      .forEach(id => { const el = document.getElementById(id); if (el) ro.observe(el); });
+  } else {
+    setTimeout(drawAllCanvases, 100);
+  }
 }
 
 // ============================================================
