@@ -48,6 +48,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.x'
+          cache: 'pip'
 
       - name: Install dependencies
         run: |
@@ -92,6 +93,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.x'
+          cache: 'pip'
 
       - name: Install dependencies
         run: |
@@ -136,6 +138,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.x'
+          cache: 'pip'
 
       - name: Install dependencies
         run: |
@@ -154,11 +157,11 @@ jobs:
       - name: Execute goal_scene_collector.py
         run: |
           mkdir -p cache
-          INCREMENTAL_FLAG=""
-          if [ "${{ needs.detect-mode.outputs.mode }}" = "incremental" ]; then
-            INCREMENTAL_FLAG="--incremental"
+          FULL_FLAG=""
+          if [ "${{ needs.detect-mode.outputs.mode }}" = "full" ]; then
+            FULL_FLAG="--full"
           fi
-          python scripts/goal_scene_collector.py --github_token ${{ secrets.GH_PAT }} $INCREMENTAL_FLAG
+          python scripts/goal_scene_collector.py --github_token ${{ secrets.GH_PAT }} $FULL_FLAG
           cp goal_scenes.json cache/
 
       - name: Upload artifact
@@ -178,6 +181,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.x'
+          cache: 'pip'
 
       - name: Install dependencies
         run: |
