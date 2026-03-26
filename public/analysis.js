@@ -21,6 +21,25 @@ function formatSec(sec) {
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
+function makeTeamCard({ title, subtitle, yellow: y, blue: bl }) {
+  const div = document.createElement('div');
+  div.className = 'an-team-stat-card';
+  div.innerHTML = `
+    <h3>${title}${subtitle ? ` <span class="an-card-subtitle">${subtitle}</span>` : ''}</h3>
+    <div class="an-team-stat-row">
+      <div class="an-team-stat-item">
+        <span class="an-team-val yellow">${y.val}<span class="an-team-val-unit">${y.unit}</span></span>
+        <span class="an-team-sub">${y.label}</span>
+      </div>
+      <div class="an-team-stat-item right">
+        <span class="an-team-val blue">${bl.val}<span class="an-team-val-unit">${bl.unit}</span></span>
+        <span class="an-team-sub">${bl.label}</span>
+      </div>
+    </div>
+  `;
+  return div;
+}
+
 // ============================================================
 // 試合統計レンダリング
 // ============================================================
@@ -51,38 +70,19 @@ function renderMatchStats(stats, yName, bName) {
   const ys = stats.robots.yellow;
   const bs = stats.robots.blue;
 
-  function teamCard({ title, subtitle, yellow: y, blue: bl }) {
-    const div = document.createElement('div');
-    div.className = 'an-team-stat-card';
-    div.innerHTML = `
-      <h3>${title}${subtitle ? ` <span class="an-card-subtitle">${subtitle}</span>` : ''}</h3>
-      <div class="an-team-stat-row">
-        <div class="an-team-stat-item">
-          <span class="an-team-val yellow">${y.val}<span class="an-team-val-unit">${y.unit}</span></span>
-          <span class="an-team-sub">${y.label}</span>
-        </div>
-        <div class="an-team-stat-item right">
-          <span class="an-team-val blue">${bl.val}<span class="an-team-val-unit">${bl.unit}</span></span>
-          <span class="an-team-sub">${bl.label}</span>
-        </div>
-      </div>
-    `;
-    return div;
-  }
-
-  teamGrid.appendChild(teamCard({
+  teamGrid.appendChild(makeTeamCard({
     title: 'チーム総走行距離',
     yellow: { val: ys.total_distance_m.toFixed(0), unit: ' m', label: yName },
     blue:   { val: bs.total_distance_m.toFixed(0), unit: ' m', label: bName },
   }));
 
-  teamGrid.appendChild(teamCard({
+  teamGrid.appendChild(makeTeamCard({
     title: 'チーム最速ロボット',
     yellow: { val: ys.fastest.max_speed_ms.toFixed(1), unit: ' m/s', label: `${yName} #${ys.fastest.id}` },
     blue:   { val: bs.fastest.max_speed_ms.toFixed(1), unit: ' m/s', label: `${bName} #${bs.fastest.id}` },
   }));
 
-  teamGrid.appendChild(teamCard({
+  teamGrid.appendChild(makeTeamCard({
     title: 'スプリント回数',
     subtitle: `(${sprintThreshold.toFixed(1)} m/s 超)`,
     yellow: { val: ys.total_sprint_count, unit: '', label: yName },
@@ -132,6 +132,127 @@ function renderMatchStats(stats, yName, bName) {
     `;
     robotTables.appendChild(wrap);
   }
+}
+
+// ============================================================
+// ロボット動作特性分析レンダリング (TIGERs ETDP 2026 §3)
+// ============================================================
+function renderMotionAnalysis(motion, yName, bName) {
+  const section = document.getElementById('motion-analysis-section');
+  if (!section) return;
+  section.style.display = '';
+
+  const limitsGrid = document.getElementById('motion-limits-grid');
+  const yl = motion.yellow.limits;
+  const bl = motion.blue.limits;
+  const yValid = yl.valid, bValid = bl.valid;
+  const na = '–';
+
+  if (limitsGrid) {
+    limitsGrid.appendChild(makeTeamCard({
+      title: '推定速度限界',
+      subtitle: '(99.5パーセンタイル)',
+      yellow: { val: yValid ? yl.velocity_limit.toFixed(2) : na, unit: ' m/s', label: yName },
+      blue:   { val: bValid ? bl.velocity_limit.toFixed(2) : na, unit: ' m/s', label: bName },
+    }));
+    limitsGrid.appendChild(makeTeamCard({
+      title: '推定加速度限界',
+      subtitle: '(75パーセンタイル)',
+      yellow: { val: yValid ? yl.accel_limit.toFixed(2) : na, unit: ' m/s²', label: yName },
+      blue:   { val: bValid ? bl.accel_limit.toFixed(2) : na, unit: ' m/s²', label: bName },
+    }));
+    limitsGrid.appendChild(makeTeamCard({
+      title: '推定減速限界',
+      subtitle: '(95パーセンタイル)',
+      yellow: { val: yValid ? yl.decel_limit.toFixed(2) : na, unit: ' m/s²', label: yName },
+      blue:   { val: bValid ? bl.decel_limit.toFixed(2) : na, unit: ' m/s²', label: bName },
+    }));
+    limitsGrid.appendChild(makeTeamCard({
+      title: '速度サンプル数',
+      yellow: { val: yl.sample_count.toLocaleString(), unit: '', label: yName },
+      blue:   { val: bl.sample_count.toLocaleString(), unit: '', label: bName },
+    }));
+  }
+
+  // 速度ヒストグラム
+  const yhist = motion.yellow.speed_histogram;
+  const bhist = motion.blue.speed_histogram;
+  const speedLabels = yhist.bins.map((_, i) => ((i + 0.5) * yhist.bin_width).toFixed(1));
+  const histEl = document.getElementById('speed-histogram-chart');
+  if (histEl) {
+    new ApexCharts(histEl, {
+      chart: { type: 'bar', height: 240, background: 'transparent', toolbar: { show: false },
+               animations: { enabled: false } },
+      theme: { mode: 'dark' },
+      series: [
+        { name: yName, data: yhist.bins, color: '#FDD663' },
+        { name: bName, data: bhist.bins, color: '#5B9BF5' },
+      ],
+      xaxis: {
+        categories: speedLabels,
+        title: { text: '速度 (m/s)' },
+        tickAmount: 10,
+        labels: { rotate: 0 },
+      },
+      yaxis: { title: { text: '頻度' }, labels: { formatter: v => v.toLocaleString() } },
+      plotOptions: { bar: { columnWidth: '90%' } },
+      dataLabels: { enabled: false },
+      grid: { borderColor: 'rgba(255,255,255,0.08)' },
+      legend: { position: 'top' },
+    }).render();
+  }
+
+  // 速度-加速度 2Dヒートマップ (チーム別)
+  function renderSAHeatmap(containerId, teamMotion, color) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    const hm = teamMotion.speed_accel_heatmap;
+    const speedBins = Math.round(hm.speed_max / hm.speed_bin_width);
+    const accelBins = Math.round((hm.accel_max - hm.accel_min) / hm.accel_bin_width);
+
+    // data: [[speed_bin, accel_bin, count], ...]
+    // ApexCharts heatmap: series = accel行ごとに speed方向の配列
+    const grid = Array.from({ length: accelBins }, () => new Array(speedBins).fill(0));
+    for (const [sb, ab, cnt] of hm.data) {
+      if (sb < speedBins && ab < accelBins) grid[ab][sb] = cnt;
+    }
+
+    // 系列: Y軸 = 加速度ビン (下→上 = 減速→加速)
+    const series = grid.map((row, ab) => {
+      const accelVal = (hm.accel_min + (ab + 0.5) * hm.accel_bin_width).toFixed(2);
+      return { name: `${accelVal}`, data: row.map((v, sb) => ({ x: ((sb + 0.5) * hm.speed_bin_width).toFixed(1), y: v })) };
+    }).reverse(); // 上が加速, 下が減速
+
+    new ApexCharts(el, {
+      chart: { type: 'heatmap', height: 320, background: 'transparent', toolbar: { show: false },
+               animations: { enabled: false } },
+      theme: { mode: 'dark' },
+      series,
+      dataLabels: { enabled: false },
+      xaxis: { title: { text: '速度 (m/s)' }, tickAmount: 10 },
+      yaxis: { title: { text: '加速度 (m/s²)' } },
+      plotOptions: {
+        heatmap: {
+          colorScale: {
+            ranges: [
+              { from: 0, to: 0, color: '#1a1a2e', name: '0' },
+            ],
+          },
+        },
+      },
+      colors: [color],
+      grid: { borderColor: 'rgba(255,255,255,0.08)' },
+      tooltip: { y: { formatter: v => v.toLocaleString() } },
+    }).render();
+  }
+
+  const yTitleEl = document.getElementById('motion-heatmap-yellow-title');
+  const bTitleEl = document.getElementById('motion-heatmap-blue-title');
+  if (yTitleEl) yTitleEl.textContent = `${yName} — 速度 vs 加速度`;
+  if (bTitleEl) bTitleEl.textContent = `${bName} — 速度 vs 加速度`;
+
+  renderSAHeatmap('speed-accel-heatmap-yellow', motion.yellow, '#FDD663');
+  renderSAHeatmap('speed-accel-heatmap-blue',   motion.blue,   '#5B9BF5');
 }
 
 // ============================================================
@@ -279,8 +400,8 @@ function eventCategory(typeVal) {
   document.getElementById('loading-overlay').style.display = 'none';
   document.getElementById('main-content').style.display = 'block';
 
-  const { meta, match_stats, replay_frames, ball_heatmap, robot_heatmaps, goal_scenes,
-          events, possession, score_timeline, referee_commands } = data;
+  const { meta, match_stats, motion_analysis, replay_frames, ball_heatmap, robot_heatmaps,
+          goal_scenes, events, possession, score_timeline, referee_commands } = data;
 
   // ============================================================
   // ① スコアボード & ヘッダー
@@ -319,6 +440,7 @@ function eventCategory(typeVal) {
   // ② 試合統計
   // ============================================================
   if (match_stats) renderMatchStats(match_stats, yName, bName);
+  if (motion_analysis) renderMotionAnalysis(motion_analysis, yName, bName);
 
   // ============================================================
   // ③ フルリプレイ

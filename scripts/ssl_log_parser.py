@@ -14,6 +14,7 @@ SSL log format:
 """
 
 import bisect
+from collections import deque
 import gzip
 import io
 import math
@@ -166,6 +167,8 @@ def _tracker_to_frame(timestamp_ns: int, wrapper) -> dict | None:
         }
         if r.HasField("vel"):
             entry["vel_ms"] = math.hypot(r.vel.x, r.vel.y)
+            entry["vel_x"] = r.vel.x
+            entry["vel_y"] = r.vel.y
         if team_color == TeamColor.Value("TEAM_COLOR_YELLOW"):
             robots_yellow.append(entry)
         else:
@@ -487,6 +490,128 @@ def _compute_match_stats(frames: list[dict]) -> dict:
     }
 
 
+# 動作特性分析定数 (TIGERs Mannheim ETDP 2026 §3)
+_MOTION_MIN_SPEED_MS = 0.1       # 静止ロボット除外閾値 (m/s)
+_MOTION_FRAME_OFFSET = 5         # 加速度推定のフレームオフセット (ノイズ低減)
+_MOTION_MIN_SAMPLES = 2000       # 動作限界推定に必要な最低サンプル数
+_MOTION_SPEED_MAX = 5.0          # 速度ヒストグラム最大値 (m/s)
+_MOTION_SPEED_BIN = 0.1          # 速度ビン幅 (m/s)
+_MOTION_ACCEL_MIN = -8.0         # 加速度ヒストグラム最小値 (m/s²)
+_MOTION_ACCEL_MAX = 8.0          # 加速度ヒストグラム最大値 (m/s²)
+_MOTION_ACCEL_BIN = 0.25         # 加速度ビン幅 (m/s²)
+
+
+def _compute_motion_analysis(frames: list[dict]) -> dict:
+    """TIGERs Mannheim ETDP 2026 §3 の手法でロボット動作特性を分析する。
+
+    - 速度ヒストグラム: speed > 0.1 m/s のフレームのみ
+    - 加速度推定: 速度ベクトルの差分を5フレームオフセットで計算
+    - 速度-加速度 2D ヒストグラム (Fig 4 相当)
+    - 動作限界推定: パーセンタイルベース (速度:0.995, 加速:0.75, 減速:0.95)
+    """
+    _SPEED_BINS = int(_MOTION_SPEED_MAX / _MOTION_SPEED_BIN)
+    _ACCEL_BINS = int((_MOTION_ACCEL_MAX - _MOTION_ACCEL_MIN) / _MOTION_ACCEL_BIN)
+
+    def _empty_team() -> dict:
+        return {
+            "speed_hist": [0] * _SPEED_BINS,
+            "sa_grid": {},
+            "speed_samples": [],
+            "accel_samples": [],
+            "decel_samples": [],
+        }
+
+    teams = {"yellow": _empty_team(), "blue": _empty_team()}
+    robot_history: dict[tuple[str, int], deque] = {}
+
+    for frame in frames:
+        t_ns = frame["t_ns"]
+        for team_key, robot_list in (("yellow", frame.get("robots_yellow", [])),
+                                      ("blue",   frame.get("robots_blue", []))):
+            td = teams[team_key]
+            for r in robot_list:
+                spd = r.get("vel_ms")
+                if spd is None:
+                    continue
+
+                # 速度ヒストグラム (speed > 閾値のみ)
+                if spd >= _MOTION_MIN_SPEED_MS:
+                    sbin = min(int(spd / _MOTION_SPEED_BIN), _SPEED_BINS - 1)
+                    td["speed_hist"][sbin] += 1
+                    td["speed_samples"].append(spd)
+
+                # 加速度推定: 速度ベクトルの差分をフレームオフセットで計算
+                vx = r.get("vel_x")
+                vy = r.get("vel_y")
+                if vx is None or vy is None:
+                    continue
+                key = (team_key, r["id"])
+                if key not in robot_history:
+                    robot_history[key] = deque(maxlen=_MOTION_FRAME_OFFSET + 1)
+                hist = robot_history[key]
+                hist.append((t_ns, vx, vy, spd))
+
+                if len(hist) < _MOTION_FRAME_OFFSET + 1:
+                    continue
+
+                t_old, vx_old, vy_old, spd_old = hist[0]
+                dt_ns = t_ns - t_old
+                if not (_STATS_MIN_DT_NS <= dt_ns <= _STATS_MAX_DT_NS * 10):
+                    continue
+                dt_sec = dt_ns / 1e9
+
+                acc_mag = math.hypot((vx - vx_old) / dt_sec, (vy - vy_old) / dt_sec)
+                acc_signed = acc_mag if spd >= spd_old else -acc_mag
+
+                if acc_signed > 0:
+                    td["accel_samples"].append(acc_signed)
+                elif acc_signed < 0:
+                    td["decel_samples"].append(-acc_signed)
+
+                mid_spd = (spd + spd_old) / 2.0
+                if mid_spd < _MOTION_MIN_SPEED_MS:
+                    continue
+                sbin = min(int(mid_spd / _MOTION_SPEED_BIN), _SPEED_BINS - 1)
+                if _MOTION_ACCEL_MIN <= acc_signed <= _MOTION_ACCEL_MAX:
+                    abin = min(
+                        int((acc_signed - _MOTION_ACCEL_MIN) / _MOTION_ACCEL_BIN),
+                        _ACCEL_BINS - 1,
+                    )
+                    sa_key = (sbin, abin)
+                    td["sa_grid"][sa_key] = td["sa_grid"].get(sa_key, 0) + 1
+
+    def _build_team_result(td: dict) -> dict:
+        n_speed = len(td["speed_samples"])
+        valid = n_speed >= _MOTION_MIN_SAMPLES
+        limits: dict = {"sample_count": n_speed, "valid": valid}
+        if valid:
+            # 各リストを1回だけソートしてから複数パーセンタイルを取得
+            def _pct(samples: list[float], p: float) -> float:
+                s = sorted(samples)
+                return round(s[min(int(len(s) * p), len(s) - 1)], 2)
+            limits["velocity_limit"] = _pct(td["speed_samples"], 0.995)
+            limits["accel_limit"]    = _pct(td["accel_samples"], 0.75) if td["accel_samples"] else 0.0
+            limits["decel_limit"]    = _pct(td["decel_samples"], 0.95) if td["decel_samples"] else 0.0
+
+        return {
+            "speed_histogram": {"bin_width": _MOTION_SPEED_BIN, "bins": td["speed_hist"]},
+            "speed_accel_heatmap": {
+                "speed_bin_width": _MOTION_SPEED_BIN,
+                "speed_max": _MOTION_SPEED_MAX,
+                "accel_bin_width": _MOTION_ACCEL_BIN,
+                "accel_min": _MOTION_ACCEL_MIN,
+                "accel_max": _MOTION_ACCEL_MAX,
+                "data": [[sb, ab, cnt] for (sb, ab), cnt in td["sa_grid"].items()],
+            },
+            "limits": limits,
+        }
+
+    return {
+        "yellow": _build_team_result(teams["yellow"]),
+        "blue":   _build_team_result(teams["blue"]),
+    }
+
+
 def _compute_all_heatmaps(
     frames: list[dict],
 ) -> tuple[list[list[int]], list[list[int]], list[list[int]]]:
@@ -695,8 +820,14 @@ def _downsample_replay_frames(frames: list[dict], start_ns: int, fps: int) -> li
         result.append({
             "t_sec": round((t_ns - start_ns) / 1e9, 2),
             "ball": f["ball"],
-            "robots_yellow": f["robots_yellow"],
-            "robots_blue": f["robots_blue"],
+            "robots_yellow": [
+                {k: v for k, v in r.items() if k not in ("vel_x", "vel_y", "vel_ms")}
+                for r in f["robots_yellow"]
+            ],
+            "robots_blue": [
+                {k: v for k, v in r.items() if k not in ("vel_x", "vel_y", "vel_ms")}
+                for r in f["robots_blue"]
+            ],
         })
         t_ns += interval_ns
 
@@ -829,6 +960,7 @@ def extract_full_analysis(log_gz_bytes: bytes, filename: str = "") -> dict:
 
     ball_heatmap, yellow_heatmap, blue_heatmap = _compute_all_heatmaps(position_frames)
     match_stats = _compute_match_stats(position_frames)
+    motion_analysis = _compute_motion_analysis(position_frames)
 
     return {
         "meta": {
@@ -839,6 +971,7 @@ def extract_full_analysis(log_gz_bytes: bytes, filename: str = "") -> dict:
             "duration_sec": duration_sec,
         },
         "match_stats": match_stats,
+        "motion_analysis": motion_analysis,
         "replay_frames": _downsample_replay_frames(position_frames, start_ns, REPLAY_FPS),
         "ball_heatmap": ball_heatmap,
         "robot_heatmaps": {"yellow": yellow_heatmap, "blue": blue_heatmap},

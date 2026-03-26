@@ -742,3 +742,31 @@
   color: var(--an-on-surface);
   text-decoration: none;
 }
+
+/* ============================================================
+   ロボット動作特性分析セクション
+   ============================================================ */
+.an-motion-heatmap-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 16px;
+}
+.an-motion-chart-row {
+  margin-top: 16px;
+}
+.an-section-sublabel {
+  margin: 0 0 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--an-on-variant);
+  letter-spacing: 0.02em;
+}
+.an-motion-heatmap {
+  height: 320px !important;
+}
+@media (max-width: 700px) {
+  .an-motion-heatmap-grid {
+    grid-template-columns: 1fr;
+  }
+}

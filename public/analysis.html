@@ -73,7 +73,34 @@
         <div class="an-stats-robot-tables" id="stats-robot-tables"></div>
       </section>
 
-      <!-- ③ フルリプレイ -->
+      <!-- ③ ロボット動作特性 -->
+      <section class="an-section" id="motion-analysis-section" style="display:none">
+        <h2 class="an-section-title">ロボット動作特性分析</h2>
+        <p class="an-section-desc">
+          各チームのロボット速度・加速度分布とパーセンタイルベースの動作限界推定。
+          速度 &gt; 0.1 m/s のフレームのみ集計。
+          <a href="https://ssl.robocup.org/wp-content/uploads/2026/03/2026_ETDP_TIGERs-Mannheim.pdf" target="_blank" rel="noopener" style="color:var(--an-on-variant)">TIGERs Mannheim ETDP 2026 §3</a> の手法に基づく。
+        </p>
+        <div class="an-stats-team-grid" id="motion-limits-grid"></div>
+        <div class="an-motion-chart-row">
+          <div>
+            <p class="an-section-sublabel">速度分布 (チーム合計)</p>
+            <div id="speed-histogram-chart" class="an-chart-container"></div>
+          </div>
+        </div>
+        <div class="an-motion-heatmap-grid">
+          <div>
+            <p class="an-section-sublabel" id="motion-heatmap-yellow-title">Yellow — 速度 vs 加速度</p>
+            <div id="speed-accel-heatmap-yellow" class="an-chart-container an-motion-heatmap"></div>
+          </div>
+          <div>
+            <p class="an-section-sublabel" id="motion-heatmap-blue-title">Blue — 速度 vs 加速度</p>
+            <div id="speed-accel-heatmap-blue" class="an-chart-container an-motion-heatmap"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ④ フルリプレイ -->
       <section class="an-section">
         <h2 class="an-section-title">フルゲームリプレイ <span class="an-badge">3fps</span></h2>
         <p class="an-section-desc">試合全体のボール・ロボット軌跡をリプレイします。スコアはリアルタイムで更新されます。</p>
