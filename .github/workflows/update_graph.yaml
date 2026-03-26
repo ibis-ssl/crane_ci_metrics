@@ -62,7 +62,6 @@ jobs:
           key: cache-crane-${{ github.run_id }}
           restore-keys: |
             cache-crane-
-            actions
 
       - name: Execute crane.py
         run: |
@@ -107,7 +106,6 @@ jobs:
           key: cache-match-${{ github.run_id }}
           restore-keys: |
             cache-match-
-            actions
 
       - name: Execute match_collector.py
         run: |
@@ -152,16 +150,12 @@ jobs:
           key: cache-goal-${{ github.run_id }}
           restore-keys: |
             cache-goal-
-            actions
 
       - name: Execute goal_scene_collector.py
         run: |
           mkdir -p cache
-          FULL_FLAG=""
-          if [ "${{ needs.detect-mode.outputs.mode }}" = "full" ]; then
-            FULL_FLAG="--full"
-          fi
-          python scripts/goal_scene_collector.py --github_token ${{ secrets.GH_PAT }} $FULL_FLAG
+          # ゴールシーンデータは過去試合の不変データのため常にインクリメンタルモードで実行
+          python scripts/goal_scene_collector.py --github_token ${{ secrets.GH_PAT }}
           cp goal_scenes.json cache/
 
       - name: Upload artifact
