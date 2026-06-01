@@ -5,6 +5,8 @@ from datetime import datetime, timedelta
 import argparse
 import json
 import pathlib
+import time
+from threading import Thread
 
 import github_api
 import ssl_log_parser
@@ -129,6 +131,8 @@ for run in workflow_runs:
         runs_to_fetch.append(run)
 
 
+print(f"ゴールシーン取得対象: {len(runs_to_fetch)} run (キャッシュ利用: {processed_runs} run)", flush=True)
+
 def process_run(run):
     """1つのrunのアーティファクトをダウンロードしてゴールシーンを抽出する。
     Returns (run_id, date_str, scenes, status) where status is 'ok', 'no_artifact', 'no_log', or 'error'.
@@ -184,6 +188,15 @@ def process_run(run):
 
     return run_id, date_str, scenes, "ok"
 
+
+def report_heartbeat():
+    while True:
+        time.sleep(30)
+        print("ゴールシーン抽出処理を実行中...", flush=True)
+
+
+if runs_to_fetch:
+    Thread(target=report_heartbeat, daemon=True).start()
 
 MAX_WORKERS = 8
 with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:

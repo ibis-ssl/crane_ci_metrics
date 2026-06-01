@@ -155,7 +155,7 @@ jobs:
         run: |
           mkdir -p cache
           # ゴールシーンデータは過去試合の不変データのため常にインクリメンタルモードで実行
-          python scripts/goal_scene_collector.py --github_token ${{ secrets.GH_PAT }}
+          python -u scripts/goal_scene_collector.py --github_token ${{ secrets.GH_PAT }}
           cp goal_scenes.json cache/
 
       - name: Upload artifact

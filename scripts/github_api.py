@@ -1,6 +1,30 @@
 # GitHub Workflow API wrapper
 import requests
 from datetime import datetime
+import time
+
+
+REQUEST_TIMEOUT = (10, 60)
+REQUEST_RETRIES = 3
+
+
+def _get_with_retry(url: str, **kwargs):
+    """GET with bounded waits so one stalled API request cannot hang CI forever."""
+    for attempt in range(1, REQUEST_RETRIES + 1):
+        try:
+            response = requests.get(url, timeout=REQUEST_TIMEOUT, **kwargs)
+            response.raise_for_status()
+            return response
+        except requests.RequestException as e:
+            if attempt == REQUEST_RETRIES:
+                raise
+            wait_seconds = attempt * 2
+            print(
+                f"GitHub API GET失敗: {e}; {wait_seconds}秒後リトライ "
+                f"(attempt {attempt} of {REQUEST_RETRIES})",
+                flush=True,
+            )
+            time.sleep(wait_seconds)
 
 
 class GitHubWorkflowAPI:
@@ -22,7 +46,7 @@ class GitHubWorkflowAPI:
             f"https://api.github.com/repos/{repo}/actions/workflows/{workflow_id}/runs"
         )
 
-        first_page_response = requests.get(
+        first_page_response = _get_with_retry(
             endpoint, headers=self.headers, params=payloads
         ).json()
 
@@ -45,7 +69,7 @@ class GitHubWorkflowAPI:
         # Fetch using the list of page numbers; stop early if all runs on page are older than cutoff_date
         for page in range(2, pages_needed + 1):
             payloads["page"] = page
-            page_response = requests.get(
+            page_response = _get_with_retry(
                 endpoint, headers=self.headers, params=payloads
             ).json()
             page_runs = page_response["workflow_runs"]
@@ -83,7 +107,7 @@ class GitHubWorkflowAPI:
         def fetch_duration(run):
             import time
             for attempt in range(3):
-                response = requests.get(run["jobs_url"], headers=self.headers)
+                response = _get_with_retry(run["jobs_url"], headers=self.headers)
                 data = response.json()
                 if "jobs" in data:
                     jobs = data["jobs"]
@@ -132,17 +156,17 @@ class GitHubWorkflowAPI:
 
     def get_run_artifacts(self, repo: str, run_id: int) -> list:
         endpoint = f"https://api.github.com/repos/{repo}/actions/runs/{run_id}/artifacts"
-        response = requests.get(endpoint, headers=self.headers).json()
+        response = _get_with_retry(endpoint, headers=self.headers).json()
         return response.get("artifacts", [])
 
     def download_artifact(self, repo: str, artifact_id: int) -> dict:
         endpoint = f"https://api.github.com/repos/{repo}/actions/artifacts/{artifact_id}/zip"
-        response = requests.get(endpoint, headers=self.headers, allow_redirects=True).content
+        response = _get_with_retry(endpoint, headers=self.headers, allow_redirects=True).content
         return self._extract_zip_to_dict(response)
 
     def get_workflow_logs(self, repo: str, run_id: str):
         endpoint = f"https://api.github.com/repos/{repo}/actions/runs/{run_id}/logs"
-        response = requests.get(
+        response = _get_with_retry(
             endpoint, headers=self.headers, allow_redirects=True
         ).content
         return self._extract_zip_to_dict(response)
@@ -161,13 +185,13 @@ class GithubPullRequestAPI:
     def get_all_pull_requests(self, repo: str):
         payloads = {"per_page": 100, "page": 1, "state": "all"}
         endpoint = f"https://api.github.com/repos/{repo}/pulls"
-        response = requests.get(endpoint, headers=self.headers, params=payloads).json()
+        response = _get_with_retry(endpoint, headers=self.headers, params=payloads).json()
 
         pull_requests = response
 
         while len(response) == payloads["per_page"]:
             payloads["page"] += 1
-            response = requests.get(
+            response = _get_with_retry(
                 endpoint, headers=self.headers, params=payloads
             ).json()
 
@@ -200,13 +224,13 @@ class GithubPackagesAPI:
         endpoint = (
             f"https://api.github.com/orgs/{org}/packages/container/{pkg}/versions"
         )
-        response = requests.get(endpoint, headers=self.headers, params=payloads).json()
+        response = _get_with_retry(endpoint, headers=self.headers, params=payloads).json()
 
         packages = response
 
         while len(response) == payloads["per_page"]:
             payloads["page"] += 1
-            response = requests.get(
+            response = _get_with_retry(
                 endpoint, headers=self.headers, params=payloads
             ).json()
 
