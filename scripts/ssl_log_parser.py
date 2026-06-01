@@ -242,45 +242,102 @@ def extract_goal_scenes(log_gz_bytes: bytes) -> list[dict]:
         data = dec.decompress(log_gz_bytes)
         data += dec.flush()
 
-    # 全メッセージを走査してRefereeとフレームデータを収集
-    referee_snapshots: list[tuple[int, object]] = []  # (timestamp_ns, Referee)
-    position_frames: list[dict] = []  # {t_ns, ball, robots_yellow, robots_blue}
-    has_tracker = False
+    # TrackerとVisionが混在するログに備え、事前スキャンでmessage typeを確定
+    use_tracker = _scan_has_tracker(data)
+    accepted_types = {MSG_TYPE_TRACKER} if use_tracker else {
+        MSG_TYPE_VISION_2010,
+        MSG_TYPE_VISION_2014,
+    }
 
+    referee_snapshots: list[tuple[int, object]] = []
+    scene_buffer: deque[dict] = deque(
+        maxlen=int((SCENE_DURATION_SEC + 5.0) * 150 + 1)
+    )
+    goal_snapshots: list[tuple[int, int, str, int, int, list[dict]]] = []
+    prev_yellow = prev_blue = 0
+
+    # ゴール前後に必要なフレームだけを循環バッファに保持する。
     for timestamp_ns, msg_type, raw in _iter_messages(data):
         if msg_type == MSG_TYPE_REFEREE:
             try:
                 ref = ssl_gc_referee_message_pb2.Referee()
                 ref.ParseFromString(raw)
                 referee_snapshots.append((timestamp_ns, ref))
+                yellow, blue = int(ref.yellow.score), int(ref.blue.score)
+                scored_by = None
+                team_int = None
+                if yellow > prev_yellow:
+                    scored_by = "yellow"
+                    team_int = _TEAM_YELLOW
+                elif blue > prev_blue:
+                    scored_by = "blue"
+                    team_int = _TEAM_BLUE
+                if scored_by and team_int is not None and scene_buffer:
+                    goal_snapshots.append(
+                        (
+                            timestamp_ns,
+                            team_int,
+                            scored_by,
+                            yellow,
+                            blue,
+                            list(scene_buffer),
+                        )
+                    )
+                prev_yellow, prev_blue = yellow, blue
             except Exception:
                 pass
 
-        elif msg_type in (MSG_TYPE_VISION_2010, MSG_TYPE_VISION_2014) and not has_tracker:
+        elif msg_type in accepted_types:
             try:
-                wrapper = ssl_vision_wrapper_pb2.SSL_WrapperPacket()
-                wrapper.ParseFromString(raw)
-                frame = _detection_to_frame(timestamp_ns, wrapper)
+                if use_tracker:
+                    wrapper = TrackerWrapperPacket()
+                    wrapper.ParseFromString(raw)
+                    frame = _tracker_to_frame(timestamp_ns, wrapper)
+                else:
+                    wrapper = ssl_vision_wrapper_pb2.SSL_WrapperPacket()
+                    wrapper.ParseFromString(raw)
+                    frame = _detection_to_frame(timestamp_ns, wrapper)
                 if frame:
-                    position_frames.append(frame)
+                    scene_buffer.append(frame)
             except Exception:
                 pass
 
-        elif msg_type == MSG_TYPE_TRACKER:
-            try:
-                wrapper = TrackerWrapperPacket()
-                wrapper.ParseFromString(raw)
-                frame = _tracker_to_frame(timestamp_ns, wrapper)
-                if frame:
-                    if not has_tracker:
-                        # Trackerデータが存在 → Visionデータを破棄してTrackerを使用
-                        has_tracker = True
-                        position_frames = []
-                    position_frames.append(frame)
-            except Exception:
-                pass
+    del data
 
-    return _goal_scenes_from_parsed(position_frames, referee_snapshots)
+    possible_goals = _collect_possible_goals(referee_snapshots)
+    scenes: list[dict] = []
+    goal_index = 0
+    for (
+        goal_time_ns,
+        team_int,
+        scored_by,
+        yellow,
+        blue,
+        frames_snapshot,
+    ) in goal_snapshots:
+        scene_end_ns = _find_possible_goal_time(
+            possible_goals, goal_time_ns, team_int
+        )
+        start_ns = scene_end_ns - int(SCENE_DURATION_SEC * 1e9)
+        raw_frames = [
+            frame
+            for frame in frames_snapshot
+            if start_ns <= frame["t_ns"] <= scene_end_ns
+        ]
+        if raw_frames:
+            scenes.append({
+                "goal_index": goal_index,
+                "scored_by": scored_by,
+                "score_after": {"yellow": yellow, "blue": blue},
+                "duration_sec": SCENE_DURATION_SEC,
+                "fps": OUTPUT_FPS,
+                "frames": _downsample_frames(
+                    raw_frames, scene_end_ns, SCENE_DURATION_SEC, OUTPUT_FPS
+                ),
+            })
+            goal_index += 1
+
+    return scenes
 
 
 # ============================================================

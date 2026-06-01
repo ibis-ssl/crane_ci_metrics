@@ -198,7 +198,7 @@ def report_heartbeat():
 if runs_to_fetch:
     Thread(target=report_heartbeat, daemon=True).start()
 
-MAX_WORKERS = 8
+MAX_WORKERS = 2
 with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
     futures = {executor.submit(process_run, run): run for run in runs_to_fetch}
     for future in as_completed(futures):
